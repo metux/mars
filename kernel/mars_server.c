@@ -359,7 +359,7 @@ int handler_thread(void *data)
 			init_rwsem(&local.dent_mutex);
 			init_rwsem(&local.brick_mutex);
 
-			status = mars_dent_work(&local, "/mars", sizeof(struct mars_dent), light_checker, dummy_worker, &local, 3);
+			status = mars_dent_work(&local, "/mars", sizeof(struct mars_dent), external_checker, dummy_worker, &local, 3);
 
 			down(&brick->socket_sem);
 			status = mars_send_dent_list(sock, &local.dent_anchor);

@@ -4249,7 +4249,8 @@ static const struct light_class light_classes[] = {
 
 /* Helper routine to pre-determine the relevance of a name from the filesystem.
  */
-int light_checker(struct mars_dent *parent, const char *_name, int namlen, unsigned int d_type, int *prefix, int *serial, bool *use_channel)
+static
+int _checker(struct mars_dent *parent, const char *_name, int namlen, unsigned int d_type, int *prefix, int *serial, bool *use_channel, bool external_mode)
 {
 	int class;
 	int status = -2;
@@ -4306,7 +4307,7 @@ int light_checker(struct mars_dent *parent, const char *_name, int namlen, unsig
 		}
 		if (prefix)
 			*prefix = len;
-		if (test->cl_hostcontext) {
+		if (test->cl_hostcontext && !external_mode) {
 			if (memcmp(name+len, my_id(), namlen-len)) {
 				//MARS_DBG("context mismatch '%s' at '%s'\n", name, name+len);
 				continue;
@@ -4322,6 +4323,17 @@ int light_checker(struct mars_dent *parent, const char *_name, int namlen, unsig
 	brick_string_free(name);
 #endif
 	return status;
+}
+
+static
+int light_checker(struct mars_dent *parent, const char *_name, int namlen, unsigned int d_type, int *prefix, int *serial, bool *use_channel)
+{
+	return _checker(parent, _name, namlen, d_type, prefix, serial, use_channel, false);
+}
+
+int external_checker(struct mars_dent *parent, const char *_name, int namlen, unsigned int d_type, int *prefix, int *serial, bool *use_channel)
+{
+	return _checker(parent, _name, namlen, d_type, prefix, serial, use_channel, true);
 }
 
 /* Do some syntactic checks, then delegate work to the real worker functions
