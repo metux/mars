@@ -353,6 +353,19 @@ void _bio_ref_io(struct bio_output *output, struct mref_object *mref, bool cork)
 	bio_get(bio);
 
 	rw = mref->ref_rw & 1;
+
+	if (mref->ref_flags & MREF_FLUSH) {
+#if defined(BIO_RW_RQ_MASK) || defined(BIO_RW_BARRIER)
+		rw |= (1 << BIO_RW_BARRIER);
+#elif defined(REQ_FLUSH)
+		rw |= REQ_FLUSH;
+#ifdef REQ_FUA
+		rw |= REQ_FUA;
+#endif
+#else
+#warning Cannot control the FLUSH flag
+#endif
+	}
 	if (brick->do_noidle && !cork) {
 // adapt to different kernel versions (TBD: improve)
 #if defined(BIO_RW_RQ_MASK) || defined(BIO_FLUSH)
@@ -363,9 +376,18 @@ void _bio_ref_io(struct bio_output *output, struct mref_object *mref, bool cork)
 #warning Cannot control the NOIDLE flag
 #endif
 	}
-	if (!mref->ref_skip_sync) {
-		if (brick->do_sync) {
-#if defined(BIO_RW_RQ_MASK) || defined(BIO_FLUSH)
+	if (brick->do_sync) {
+		if (!(mref->ref_flags & MREF_PERF_NOMETA)) {
+#if defined(BIO_RW_RQ_MASK) || defined(BIO_RW_META)
+			rw |= (1 << BIO_RW_META);
+#elif defined(REQ_META)
+			rw |= REQ_META;
+#else
+#warning Cannot control the META flag
+#endif
+		}
+		if (!(mref->ref_flags & MREF_PERF_NOSYNC)) {
+#if defined(BIO_RW_RQ_MASK) || defined(BIO_RW_SYNCIO)
 			rw |= (1 << BIO_RW_SYNCIO);
 #elif defined(REQ_SYNC)
 			rw |= REQ_SYNC;
@@ -373,14 +395,14 @@ void _bio_ref_io(struct bio_output *output, struct mref_object *mref, bool cork)
 #warning Cannot control the SYNC flag
 #endif
 		}
+	}
 #if defined(BIO_RW_RQ_MASK) || defined(BIO_FLUSH)
-		if (brick->do_unplug && !cork) {
-			rw |= (1 << BIO_RW_UNPLUG);
-		}
+	if (brick->do_unplug && !cork) {
+		rw |= (1 << BIO_RW_UNPLUG);
+	}
 #else
 		// there is no substitute, but the above NOIDLE should do the job (CHECK!)
 #endif
-	}
 
 	MARS_IO("starting IO rw = %d prio 0 %d fly = %d\n", rw, mref->ref_prio, atomic_read(&brick->fly_count[PRIO_INDEX(mref)]));
 	mars_trace(mref, "bio_submit");
