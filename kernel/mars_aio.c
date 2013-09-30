@@ -672,10 +672,11 @@ static int aio_event_thread(void *data)
 			mapfree_set(output->mf, mref->ref_pos, mref->ref_pos + mref->ref_len);
 
 			if (output->brick->o_fdsync
-			   && err >= 0 
-			   && mref->ref_rw != READ
-			   && !mref->ref_skip_sync
-			   && !mref_a->resubmit++) {
+			    && err >= 0
+			    && mref->ref_rw != READ
+			    && ((mref->ref_flags & MREF_FLUSH) ||
+				!(mref->ref_flags & MREF_PERF_NOSYNC))
+			    && !mref_a->resubmit++) {
 				// workaround for non-implemented AIO FSYNC operation
 				if (output->mf &&
 				    output->mf->mf_filp &&

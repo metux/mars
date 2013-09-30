@@ -64,7 +64,9 @@ struct if_input {
 	atomic_t total_write_count;
 	atomic_t total_empty_count;
 	atomic_t total_fire_count;
-	atomic_t total_skip_sync_count;
+	atomic_t total_flush_count;
+	atomic_t total_nometa_count;
+	atomic_t total_nosync_count;
 	atomic_t total_mref_read_count;
 	atomic_t total_mref_write_count;
 	spinlock_t req_lock;
@@ -82,7 +84,6 @@ struct if_brick {
 	loff_t dev_size;
 	int max_plugged;
 	int readahead;
-	bool skip_sync;
 	// inspectable
 	atomic_t open_count;
 	// private

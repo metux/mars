@@ -63,7 +63,7 @@ struct trans_logger_hash_anchor {
 
 ///////////////////////// global tuning ////////////////////////
 
-int trans_logger_completion_semantics = 1;
+int trans_logger_completion_semantics = 3;
 EXPORT_SYMBOL_GPL(trans_logger_completion_semantics);
 
 int trans_logger_do_crc =
@@ -1459,13 +1459,49 @@ void _complete(struct trans_logger_brick *brick, struct trans_logger_mref_aspect
 	orig_mref = orig_mref_a->object;
 	CHECK_PTR(orig_mref, err);
 
-	if (orig_mref_a->is_completed || 
-	    (pre_io &&
-	     (trans_logger_completion_semantics >= 2 ||
-	      (trans_logger_completion_semantics >= 1 && !orig_mref->ref_skip_sync)))) {
+	if (orig_mref_a->is_completed)
 		goto done;
+
+	/* Can we signal completion earlier than in reality?
+	 * The lower completion_semantics, the safer we are,
+	 * but performance will become worse (tradeoff between
+	 * performance and safty).
+	 */
+	if (pre_io) {
+		int semantics = trans_logger_completion_semantics;
+
+		// semantics <= 0 : always wait for writethrough ("safest" mode)
+		if (semantics <= 0)
+			goto done;
+
+		// semantics >= 4 : obey no flags, don't wait for anything, always signal writethough (most "dangerous" mode)
+		if (semantics >= 4)
+			goto signal_completion;
+
+		// 1 <= semantics <= 3: obey the MREF_FLUSH flag
+		if (orig_mref->ref_flags & MREF_FLUSH)
+			goto done;
+
+		switch (semantics) {
+		case 1:
+			// semantics == 1 : only signal completion when both MREF_NOMETA and MREF_NOSYNC are set
+			if ((orig_mref->ref_flags & (MREF_PERF_NOMETA | MREF_PERF_NOSYNC)) != (MREF_PERF_NOMETA | MREF_PERF_NOSYNC))
+				goto done;
+			break;
+		case 2:
+			// semantics == 2 : obey the MREF_NOSYNC flag
+			if (!(orig_mref->ref_flags & MREF_PERF_NOSYNC))
+				goto done;
+			break;
+		case 3:
+		default:
+			// semantics == 3: only obey the above MREF_FLUSH flag, ignore any other flags
+			break;
+		}
 	}
 
+ signal_completion:
+	// check for races with concurrent threads....
 	if (cmpxchg(&orig_mref_a->is_completed, false, true))
 		goto done;
 

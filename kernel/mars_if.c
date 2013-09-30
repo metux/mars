@@ -238,8 +238,12 @@ void _if_unplug(struct if_input *input)
 		} else {
 			atomic_inc(&input->read_flying_count);
 		}
-		if (mref->ref_skip_sync)
-			atomic_inc(&input->total_skip_sync_count);
+		if (mref->ref_flags & MREF_FLUSH)
+			atomic_inc(&input->total_flush_count);
+		if (mref->ref_flags & MREF_PERF_NOMETA)
+			atomic_inc(&input->total_nometa_count);
+		if (mref->ref_flags & MREF_PERF_NOSYNC)
+			atomic_inc(&input->total_nosync_count);
 
 		GENERIC_INPUT_CALL(input, mref_io, mref);
 		GENERIC_INPUT_CALL(input, mref_put, mref);
@@ -285,21 +289,23 @@ if_make_request(struct request_queue *q, struct bio *bio)
 // adapt to different kernel versions (TBD: improve)
 #if defined(BIO_RW_RQ_MASK) || defined(BIO_FLUSH)
 	const bool ahead   = bio_rw_flagged(bio, BIO_RW_AHEAD) && rw == READ;
-	const bool barrier = bio_rw_flagged(bio, BIO_RW_BARRIER);
+	const bool flush   = bio_rw_flagged(bio, BIO_RW_BARRIER);
 	const bool syncio  = bio_rw_flagged(bio, BIO_RW_SYNCIO);
 	const bool unplug  = bio_rw_flagged(bio, BIO_RW_UNPLUG);
 	const bool meta    = bio_rw_flagged(bio, BIO_RW_META);
 	const bool discard = bio_rw_flagged(bio, BIO_RW_DISCARD);
 	const bool noidle  = bio_rw_flagged(bio, BIO_RW_NOIDLE);
+	const bool fua     = false;
 #elif defined(REQ_FLUSH) && defined(REQ_SYNC)
 #define _flagged(x) (bio->bi_rw & (x))
 	const bool ahead   = _flagged(REQ_RAHEAD) && rw == READ;
-	const bool barrier = _flagged(REQ_FLUSH);
+	const bool flush   = _flagged(REQ_FLUSH);
 	const bool syncio  = _flagged(REQ_SYNC);
 	const bool unplug  = false;
 	const bool meta    = _flagged(REQ_META);
 	const bool discard = _flagged(REQ_DISCARD);
 	const bool noidle  = _flagged(REQ_THROTTLED);
+	const bool fua     = _flagged(REQ_FUA);
 #else
 #error Cannot decode the bio flags
 #endif
@@ -307,14 +313,23 @@ if_make_request(struct request_queue *q, struct bio *bio)
 
 	/* Transform into MARS flags
 	 */
-	const int  ref_prio =
-		(prio == IOPRIO_CLASS_RT || (meta | syncio)) ?
+	const int ref_prio =
+		(prio == IOPRIO_CLASS_RT) ?
 		MARS_PRIO_HIGH :
-		(prio == IOPRIO_CLASS_IDLE) ?
+		(prio == IOPRIO_CLASS_IDLE && !(flush | meta | syncio)) ?
 		MARS_PRIO_LOW :
 		MARS_PRIO_NORMAL;
 	const bool do_unplug = ALWAYS_UNPLUG | unplug | noidle;
-	const bool do_skip_sync = brick->skip_sync && !(barrier | syncio);
+
+#define _SET_MREF_FLAGS(mref)						\
+	{								\
+		if (flush)						\
+			mref->ref_flags |= MREF_FLUSH;			\
+		if (meta)						\
+			mref->ref_flags &= ~MREF_PERF_NOMETA;		\
+		if (syncio | fua)					\
+			mref->ref_flags &= ~MREF_PERF_NOSYNC;		\
+	}
 
 	struct bio_wrapper *biow;
 	struct mref_object *mref = NULL;
@@ -333,7 +348,7 @@ if_make_request(struct request_queue *q, struct bio *bio)
 		"rw = %d "
 		"sectors = %d "
 		"ahead = %d "
-		"barrier = %d "
+		"flush = %d "
 		"syncio = %d "
 		"unplug = %d "
 		"meta = %d "
@@ -347,7 +362,7 @@ if_make_request(struct request_queue *q, struct bio *bio)
 		rw,
 		sectors,
 		ahead,
-		barrier,
+		flush,
 		syncio,
 		unplug,
 		meta,
@@ -483,9 +498,7 @@ if_make_request(struct request_queue *q, struct bio *bio)
 				mref = tmp_mref;
 				mref_a = tmp_a;
 				this_len = bv_len;
-				if (!do_skip_sync) {
-					mref->ref_skip_sync = false;
-				}
+				_SET_MREF_FLAGS(mref);
 
 				for (i = 0; i < mref_a->bio_count; i++) {
 					if (mref_a->orig_biow[i]->bio == bio) {
@@ -575,9 +588,9 @@ if_make_request(struct request_queue *q, struct bio *bio)
 				 * multiple mrefs, only the last one should be
 				 * working in synchronous writethrough mode.
 				 */
-				mref->ref_skip_sync = true;
-				if (!do_skip_sync && i + 1 >= bio->bi_vcnt) {
-					mref->ref_skip_sync = false;
+				mref->ref_flags = (MREF_PERF_NOMETA | MREF_PERF_NOSYNC);
+				if (i + 1 >= bio->bi_vcnt) {
+					_SET_MREF_FLAGS(mref);
 				}
 
 				atomic_inc(&input->plugged_count);
@@ -1013,7 +1026,9 @@ char *if_statistics(struct if_brick *brick, int verbose)
 		 "mref_writes = %d (%d%%) "
 		 "empty = %d "
 		 "fired = %d "
-		 "skip_sync = %d "
+		 "flush= %d "
+		 "nometa = %d "
+		 "nosync = %d "
 		 "| "
 		 "plugged = %d "
 		 "flying = %d "
@@ -1027,7 +1042,9 @@ char *if_statistics(struct if_brick *brick, int verbose)
 		 tmp3 ? tmp4 * 100 / tmp3 : 0,
 		 atomic_read(&input->total_empty_count),
 		 atomic_read(&input->total_fire_count),
-		 atomic_read(&input->total_skip_sync_count),
+		 atomic_read(&input->total_flush_count),
+		 atomic_read(&input->total_nometa_count),
+		 atomic_read(&input->total_nosync_count),
 		 atomic_read(&input->plugged_count),
 		 atomic_read(&input->flying_count),
 		 atomic_read(&input->read_flying_count),
@@ -1043,7 +1060,9 @@ void if_reset_statistics(struct if_brick *brick)
 	atomic_set(&input->total_write_count, 0);
 	atomic_set(&input->total_empty_count, 0);
 	atomic_set(&input->total_fire_count, 0);
-	atomic_set(&input->total_skip_sync_count, 0);
+	atomic_set(&input->total_flush_count, 0);
+	atomic_set(&input->total_nometa_count, 0);
+	atomic_set(&input->total_nosync_count, 0);
 	atomic_set(&input->total_mref_read_count, 0);
 	atomic_set(&input->total_mref_write_count, 0);
 }

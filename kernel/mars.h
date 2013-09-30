@@ -87,11 +87,28 @@
 
 // object stuff
 
-/* mref */
+/* mref flags */
 
-#define MREF_UPTODATE        1
-#define MREF_READING         2
-#define MREF_WRITING         4
+/* Don't change the order, only add new flags at the end or at
+ * pre-existing gaps.
+ */
+enum {
+	__MREF_UPTODATE,
+	__MREF_READING,
+	__MREF_WRITING,
+	// semantics which _must_ be obeyed
+	__MREF_FLUSH = 16,       // force total ordering
+	// semantics which _may_ be expoited for better performance
+	__MREF_PERF_NOMETA = 24, // allow performance improvements for bulk data
+	__MREF_PERF_NOSYNC,      // allow skipping write-through
+};
+
+#define MREF_UPTODATE        (1UL << __MREF_UPTODATE)
+#define MREF_READING         (1UL << __MREF_READING)
+#define MREF_WRITING         (1UL << __MREF_WRITING)
+#define MREF_FLUSH           (1UL << __MREF_FLUSH)
+#define MREF_PERF_NOMETA     (1UL << __MREF_PERF_NOMETA)
+#define MREF_PERF_NOSYNC     (1UL << __MREF_PERF_NOSYNC)
 
 extern const struct generic_object_type mref_type;
 
@@ -135,7 +152,6 @@ extern void mars_log_trace(struct mref_object *mref);
 	int    ref_flags;						\
 	int    ref_rw;							\
 	int    ref_id; /* not mandatory; may be used for identification */ \
-	bool   ref_skip_sync; /* skip sync for this particular mref */	\
 	/* maintained by the ref implementation, incrementable for	\
 	 * callers (but not decrementable! use ref_put()) */		\
 	bool   ref_initialized; /* internally used for checking */	\
