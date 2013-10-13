@@ -68,7 +68,6 @@ EXPORT_SYMBOL_GPL(aio_sync_mode);
 static inline
 void _enqueue(struct aio_threadinfo *tinfo, struct aio_mref_aspect *mref_a, int prio, bool at_end)
 {
-	unsigned long flags;
 #if 1
 	prio++;
 	if (unlikely(prio < 0)) {
@@ -82,7 +81,7 @@ void _enqueue(struct aio_threadinfo *tinfo, struct aio_mref_aspect *mref_a, int 
 
 	mref_a->enqueue_stamp = cpu_clock(raw_smp_processor_id());
 
-	traced_lock(&tinfo->lock, flags);
+	spin_lock(&tinfo->lock);
 
 	if (at_end) {
 		list_add_tail(&mref_a->io_head, &tinfo->mref_list[prio]);
@@ -92,7 +91,7 @@ void _enqueue(struct aio_threadinfo *tinfo, struct aio_mref_aspect *mref_a, int 
 	tinfo->queued[prio]++;
 	atomic_inc(&tinfo->queued_sum);
 
-	traced_unlock(&tinfo->lock, flags);
+	spin_unlock(&tinfo->lock);
 
 	atomic_inc(&tinfo->total_enqueue_count);
 
@@ -104,9 +103,8 @@ struct aio_mref_aspect *_dequeue(struct aio_threadinfo *tinfo)
 {
 	struct aio_mref_aspect *mref_a = NULL;
 	int prio;
-	unsigned long flags = 0;
 
-	traced_lock(&tinfo->lock, flags);
+	spin_lock(&tinfo->lock);
 
 	for (prio = 0; prio < MARS_PRIO_NR; prio++) {
 		struct list_head *start = &tinfo->mref_list[prio];
@@ -121,7 +119,7 @@ struct aio_mref_aspect *_dequeue(struct aio_threadinfo *tinfo)
 	}
 
 done:
-	traced_unlock(&tinfo->lock, flags);
+	spin_unlock(&tinfo->lock);
 
 	if (likely(mref_a && mref_a->object)) {
 		unsigned long long latency;
@@ -136,23 +134,19 @@ done:
 static inline
 void insert_dirty(struct aio_output *output, struct aio_mref_aspect *mref_a)
 {
-	unsigned long flags = 0;
-
-	traced_lock(&output->dirty_lock, flags);
+	spin_lock(&output->dirty_lock);
 	list_del(&mref_a->dirty_head);
 	list_add(&mref_a->dirty_head, &output->dirty_anchor);
-	traced_unlock(&output->dirty_lock, flags);
+	spin_unlock(&output->dirty_lock);
 }
 
 static inline
 void remove_dirty(struct aio_output *output, struct aio_mref_aspect *mref_a)
 {
 	if (!list_empty(&mref_a->dirty_head)) {
-		unsigned long flags = 0;
-
-		traced_lock(&output->dirty_lock, flags);
+		spin_lock(&output->dirty_lock);
 		list_del_init(&mref_a->dirty_head);
-		traced_unlock(&output->dirty_lock, flags);
+		spin_unlock(&output->dirty_lock);
 	}
 }
 
@@ -160,9 +154,8 @@ static inline
 void get_dirty(struct aio_output *output, loff_t *min, loff_t *max)
 {
 	struct list_head *tmp;
-	unsigned long flags = 0;
 
-	traced_lock(&output->dirty_lock, flags);
+	spin_lock(&output->dirty_lock);
 	for (tmp = output->dirty_anchor.next; tmp != &output->dirty_anchor; tmp = tmp->next) {
 		struct aio_mref_aspect *mref_a = container_of(tmp, struct aio_mref_aspect, dirty_head);
 		struct mref_object *mref = mref_a->object;
@@ -173,7 +166,7 @@ void get_dirty(struct aio_output *output, loff_t *min, loff_t *max)
 			*max = mref->ref_pos + mref->ref_len;
 		}
 	}
-	traced_unlock(&output->dirty_lock, flags);
+	spin_unlock(&output->dirty_lock);
 }
 
 ////////////////// own brick / input / output operations //////////////////
@@ -579,7 +572,6 @@ int aio_sync_thread(void *data)
 
 	while (!brick_thread_should_stop() || atomic_read(&tinfo->queued_sum) > 0) {
 		LIST_HEAD(tmp_list);
-		unsigned long flags;
 		int i;
 
 		output->fdsync_active = false;
@@ -590,7 +582,7 @@ int aio_sync_thread(void *data)
 			atomic_read(&tinfo->queued_sum) > 0,
 			HZ / 4);
 
-		traced_lock(&tinfo->lock, flags);
+		spin_lock(&tinfo->lock);
 		for (i = 0; i < MARS_PRIO_NR; i++) {
 			struct list_head *start = &tinfo->mref_list[i];
 			if (!list_empty(start)) {
@@ -601,7 +593,7 @@ int aio_sync_thread(void *data)
 				break;
 			}
 		}
-		traced_unlock(&tinfo->lock, flags);
+		spin_unlock(&tinfo->lock);
 
 		if (!list_empty(&tmp_list)) {
 			aio_sync_all(output, &tmp_list);

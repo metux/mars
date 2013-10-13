@@ -184,7 +184,6 @@ void _if_unplug(struct if_input *input)
 {
 	//struct if_brick *brick = input->brick;
 	LIST_HEAD(tmp_list);
-	unsigned long flags;
 
 #ifdef CONFIG_MARS_DEBUG
 	might_sleep();
@@ -193,7 +192,7 @@ void _if_unplug(struct if_input *input)
 	MARS_IO("plugged_count = %d\n", atomic_read(&input->plugged_count));
 
 	down(&input->kick_sem);
-	traced_lock(&input->req_lock, flags);
+	spin_lock(&input->req_lock);
 #ifdef USE_TIMER
 	del_timer(&input->timer);
 #endif
@@ -202,22 +201,21 @@ void _if_unplug(struct if_input *input)
 		list_replace_init(&input->plug_anchor, &tmp_list);
 		atomic_set(&input->plugged_count, 0);
 	}
-  	traced_unlock(&input->req_lock, flags);
+  	spin_unlock(&input->req_lock);
 	up(&input->kick_sem);
 
 	while (!list_empty(&tmp_list)) {
 		struct if_mref_aspect *mref_a;
 		struct mref_object *mref;
 		int hash_index;
-		unsigned long flags;
 
 		mref_a = container_of(tmp_list.next, struct if_mref_aspect, plug_head);
 		list_del_init(&mref_a->plug_head);
 
 		hash_index = mref_a->hash_index;
-		traced_lock(&input->hash_table[hash_index].hash_lock, flags);
+		spin_lock(&input->hash_table[hash_index].hash_lock);
 		list_del_init(&mref_a->hash_head);
-		traced_unlock(&input->hash_table[hash_index].hash_lock, flags);
+		spin_unlock(&input->hash_table[hash_index].hash_lock);
 
                 mref = mref_a->object;
 
@@ -453,7 +451,6 @@ if_make_request(struct request_queue *q, struct bio *bio)
 			struct list_head *tmp;
 			int hash_index;
 			int this_len = 0;
-			unsigned long flags;
 
 			mref = NULL;
 			mref_a = NULL;
@@ -463,7 +460,7 @@ if_make_request(struct request_queue *q, struct bio *bio)
 			hash_index = (pos / IF_HASH_CHUNK) % IF_HASH_MAX;
 
 #ifdef REQUEST_MERGING
-			traced_lock(&input->hash_table[hash_index].hash_lock, flags);
+			spin_lock(&input->hash_table[hash_index].hash_lock);
 			for (tmp = input->hash_table[hash_index].hash_anchor.next; tmp != &input->hash_table[hash_index].hash_anchor; tmp = tmp->next) {
 				struct if_mref_aspect *tmp_a;
 				struct mref_object *tmp_mref;
@@ -509,7 +506,7 @@ if_make_request(struct request_queue *q, struct bio *bio)
 			} // foreach hash collision list member
 
 		unlock:
-			traced_unlock(&input->hash_table[hash_index].hash_lock, flags);
+			spin_unlock(&input->hash_table[hash_index].hash_lock);
 #endif
 			if (!mref) {
 				int prefetch_len;
@@ -589,13 +586,13 @@ if_make_request(struct request_queue *q, struct bio *bio)
 				atomic_inc(&input->plugged_count);
 
 				mref_a->hash_index = hash_index;
-				traced_lock(&input->hash_table[hash_index].hash_lock, flags);
+				spin_lock(&input->hash_table[hash_index].hash_lock);
 				list_add_tail(&mref_a->hash_head, &input->hash_table[hash_index].hash_anchor);
-				traced_unlock(&input->hash_table[hash_index].hash_lock, flags);
+				spin_unlock(&input->hash_table[hash_index].hash_lock);
 
-				traced_lock(&input->req_lock, flags);
+				spin_lock(&input->req_lock);
 				list_add_tail(&mref_a->plug_head, &input->plug_anchor);
-				traced_unlock(&input->req_lock, flags);
+				spin_unlock(&input->req_lock);
 			} // !mref
 
 			pos += this_len;
@@ -638,8 +635,7 @@ err:
 	}
 #ifdef USE_TIMER
 	else {
-		unsigned long flags;
-		traced_lock(&input->req_lock, flags);
+		spin_lock(&input->req_lock);
 		if (timer_pending(&input->timer)) {
 			del_timer(&input->timer);
 		}
@@ -647,7 +643,7 @@ err:
 		input->timer.data = (unsigned long)input;
 		input->timer.expires = jiffies + USE_TIMER;
 		add_timer(&input->timer);
-		traced_unlock(&input->req_lock, flags);
+		spin_unlock(&input->req_lock);
 	}
 #endif
 

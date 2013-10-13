@@ -40,11 +40,10 @@ void mapfree_pages(struct mapfree_info *mf, int grace_keep)
 		start = 0;
 		end = -1;
 	} else {
-		unsigned long flags;
 		loff_t tmp;
 		loff_t min;
 		
-		traced_lock(&mf->mf_lock, flags);
+		spin_lock(&mf->mf_lock);
 
 		min = tmp = mf->mf_min[0];
 		if (likely(mf->mf_min[1] < min))
@@ -54,7 +53,7 @@ void mapfree_pages(struct mapfree_info *mf, int grace_keep)
 			mf->mf_min[0] = 0;
 		}
 
-		traced_unlock(&mf->mf_lock, flags);
+		spin_unlock(&mf->mf_lock);
 
 		min -= (loff_t)grace_keep * (1024 * 1024); // megabytes
 		end = 0;
@@ -214,14 +213,12 @@ EXPORT_SYMBOL_GPL(mapfree_get);
 
 void mapfree_set(struct mapfree_info *mf, loff_t min, loff_t max)
 {
-	unsigned long flags;
-
-	traced_lock(&mf->mf_lock, flags);
+	spin_lock(&mf->mf_lock);
 	if (!mf->mf_min[0] || mf->mf_min[0] > min)
 		mf->mf_min[0] = min;
 	if (max >= 0 && mf->mf_max < max)
 		mf->mf_max = max;
-	traced_unlock(&mf->mf_lock, flags);
+	spin_unlock(&mf->mf_lock);
 }
 EXPORT_SYMBOL_GPL(mapfree_set);
 

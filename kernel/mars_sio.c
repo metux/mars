@@ -391,7 +391,6 @@ void sio_ref_io(struct sio_output *output, struct mref_object *mref)
 	int index;
 	struct sio_threadinfo *tinfo;
 	struct sio_mref_aspect *mref_a;
-	unsigned long flags;
 
 	_mref_check(mref);
 
@@ -407,9 +406,9 @@ void sio_ref_io(struct sio_output *output, struct mref_object *mref)
 
 	index = 0;
 	if (mref->ref_rw == READ) {
-		traced_lock(&output->g_lock, flags);
+		spin_lock(&output->g_lock);
 		index = output->index++;
-		traced_unlock(&output->g_lock, flags);
+		spin_unlock(&output->g_lock);
 		index = (index % WITH_THREAD) + 1;
 	}
 
@@ -419,9 +418,9 @@ void sio_ref_io(struct sio_output *output, struct mref_object *mref)
 	atomic_inc(&tinfo->total_count);
 	atomic_inc(&tinfo->queue_count);
 
-	traced_lock(&tinfo->lock, flags);
+	spin_lock(&tinfo->lock);
 	list_add_tail(&mref_a->io_head, &tinfo->mref_list);
-	traced_unlock(&tinfo->lock, flags);
+	spin_unlock(&tinfo->lock);
 
 	wake_up_interruptible(&tinfo->event);
 }
@@ -437,7 +436,6 @@ static int sio_thread(void *data)
 		struct list_head *tmp = NULL;
 		struct mref_object *mref;
 		struct sio_mref_aspect *mref_a;
-		unsigned long flags;
 
 		wait_event_interruptible_timeout(
 			tinfo->event,
@@ -446,7 +444,7 @@ static int sio_thread(void *data)
 
 		tinfo->last_jiffies = jiffies;
 
-		traced_lock(&tinfo->lock, flags);
+		spin_lock(&tinfo->lock);
 		
 		if (!list_empty(&tinfo->mref_list)) {
 			tmp = tinfo->mref_list.next;
@@ -454,7 +452,7 @@ static int sio_thread(void *data)
 			atomic_dec(&tinfo->queue_count);
 		}
 
-		traced_unlock(&tinfo->lock, flags);
+		spin_unlock(&tinfo->lock);
 
 		if (!tmp)
 			continue;
