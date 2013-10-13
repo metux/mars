@@ -53,7 +53,6 @@ static void check_endio(struct generic_callback *cb)
 	struct mref_object *mref;
 	struct check_output *output;
 	struct check_input *input;
-	unsigned long flags;
 
 	mref_a = cb->cb_private;
 	CHECK_PTR(mref_a, fatal);
@@ -74,14 +73,14 @@ static void check_endio(struct generic_callback *cb)
 	}
 
 #ifdef CHECK_LOCK
-	traced_lock(&output->check_lock, flags);
+	spin_lock(&output->check_lock);
 
 	if (list_empty(&mref_a->mref_head)) {
 		CHECK_ERR(output, "list entry missing on %p\n", mref);
 	}
 	list_del_init(&mref_a->mref_head);
 
-	traced_unlock(&output->check_lock, flags);
+	spin_unlock(&output->check_lock);
 #else
 	(void)flags;
 #endif
@@ -128,12 +127,11 @@ static int check_watchdog(void *data)
 	MARS_INF("watchdog has started.\n");
 	while (!brick_thread_should_stop()) {
 		struct list_head *h;
-		unsigned long flags;
 		unsigned long now;
 
 		brick_msleep(5000);
 
-		traced_lock(&output->check_lock, flags);
+		spin_lock(&output->check_lock);
 
 		now = jiffies;
 		for (h = output->mref_anchor.next; h != &output->mref_anchor; h = h->next) {
@@ -157,7 +155,7 @@ static int check_watchdog(void *data)
 			}
 		}
 
-		traced_unlock(&output->check_lock, flags);
+		spin_unlock(&output->check_lock);
 	}
 	return 0;
 }
@@ -187,7 +185,6 @@ static void check_ref_io(struct check_output *output, struct mref_object *mref)
 {
 	struct check_input *input = output->brick->inputs[0];
 	struct check_mref_aspect *mref_a = check_mref_get_aspect(output->brick, mref);
-	unsigned long flags;
 
 	CHECK_PTR(mref_a, fatal);
 
@@ -198,7 +195,7 @@ static void check_ref_io(struct check_output *output, struct mref_object *mref)
 	atomic_set(&mref_a->callback_count, 2);
 
 #ifdef CHECK_LOCK
-	traced_lock(&output->check_lock, flags);
+	spin_lock(&output->check_lock);
 
 	if (!list_empty(&mref_a->mref_head)) {
 		CHECK_ERR(output, "list head not empty on %p\n", mref);
@@ -206,7 +203,7 @@ static void check_ref_io(struct check_output *output, struct mref_object *mref)
 	}
 	list_add_tail(&mref_a->mref_head, &output->mref_anchor);
 
-	traced_unlock(&output->check_lock, flags);
+	spin_unlock(&output->check_lock);
 #else
 	(void)flags;
 #endif

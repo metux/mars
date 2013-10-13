@@ -14,7 +14,7 @@
 #include "mars_config.h"
 #endif
 
-#include "brick_locks.h"
+#include "brick_say.h"
 #include "meta.h"
 
 #define MAX_BRICK_TYPES 64
@@ -263,7 +263,6 @@ struct generic_output {
 
 #define GENERIC_OUTPUT_CALL(OUTPUT,OP,ARGS...)				\
 	(								\
-		(void)LOCK_CHECK(OP),					\
 		(OUTPUT) && (OUTPUT)->ops->OP ?				\
 		(OUTPUT)->ops->OP(OUTPUT, ##ARGS) :			\
 		-ENOSYS							\
@@ -271,7 +270,6 @@ struct generic_output {
 		
 #define GENERIC_INPUT_CALL(INPUT,OP,ARGS...)				\
 	(							        \
-		(void)LOCK_CHECK(OP),					\
 		(INPUT) && (INPUT)->connect ?				\
 		GENERIC_OUTPUT_CALL((INPUT)->connect, OP, ##ARGS) :	\
 		-ENOTCONN						\

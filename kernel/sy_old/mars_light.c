@@ -956,7 +956,6 @@ void _update_info(struct trans_logger_info *inf)
 {
 	struct mars_rotate *rot = inf->inf_private;
 	int hash;
-	unsigned long flags;
 
 	if (unlikely(!rot)) {
 		MARS_ERR("rot is NULL\n");
@@ -982,10 +981,10 @@ void _update_info(struct trans_logger_info *inf)
 		}
 	}
 
-	traced_lock(&rot->inf_lock, flags);
+	spin_lock(&rot->inf_lock);
 	memcpy(&rot->infs[hash], inf, sizeof(struct trans_logger_info));
 	rot->infs_is_dirty[hash] = true;
-	traced_unlock(&rot->inf_lock, flags);
+	spin_unlock(&rot->inf_lock);
 
 	mars_trigger();
 done:;
@@ -996,13 +995,13 @@ void write_info_links(struct mars_rotate *rot)
 {
 	struct trans_logger_info inf;
 	int count = 0;
+
 	for (;;) {
-		unsigned long flags;
 		int hash = -1;
 		int min = 0;
 		int i;
 
-		traced_lock(&rot->inf_lock, flags);
+		spin_lock(&rot->inf_lock);
 		for (i = 0; i < MAX_INFOS; i++) {
 			if (!rot->infs_is_dirty[i])
 				continue;
@@ -1013,13 +1012,13 @@ void write_info_links(struct mars_rotate *rot)
 		}
 
 		if (hash < 0) {
-			traced_unlock(&rot->inf_lock, flags);
+			spin_unlock(&rot->inf_lock);
 			break;
 		}
 
 		rot->infs_is_dirty[hash] = false;
 		memcpy(&inf, &rot->infs[hash], sizeof(struct trans_logger_info));
-		traced_unlock(&rot->inf_lock, flags);
+		spin_unlock(&rot->inf_lock);
 		
 		MARS_DBG("seq = %d min_pos = %lld max_pos = %lld log_pos = %lld is_applying = %d is_logging = %d\n",
 			 inf.inf_sequence,
@@ -1569,13 +1568,12 @@ int run_bones(struct mars_peerinfo *peer)
 {
 	LIST_HEAD(tmp_list);
 	struct list_head *tmp;
-	unsigned long flags;
 	bool run_trigger = false;
 	int status = 0;
 
-	traced_lock(&peer->lock, flags);
+	spin_lock(&peer->lock);
 	list_replace_init(&peer->remote_dent_list, &tmp_list);
-	traced_unlock(&peer->lock, flags);
+	spin_unlock(&peer->lock);
 
 	MARS_DBG("remote_dent_list list_empty = %d\n", list_empty(&tmp_list));
 
@@ -1642,7 +1640,6 @@ int peer_thread(void *data)
         while (!brick_thread_should_stop()) {
 		LIST_HEAD(tmp_list);
 		LIST_HEAD(old_list);
-		unsigned long flags;
 		struct mars_cmd cmd = {
 			.cmd_str1 = peer->path,
 			.cmd_int1 = peer->maxdepth,
@@ -1720,12 +1717,12 @@ int peer_thread(void *data)
 		if (likely(!list_empty(&tmp_list))) {
 			MARS_DBG("got remote denties\n");
 
-			traced_lock(&peer->lock, flags);
+			spin_lock(&peer->lock);
 
 			list_replace_init(&peer->remote_dent_list, &old_list);
 			list_replace_init(&tmp_list, &peer->remote_dent_list);
 
-			traced_unlock(&peer->lock, flags);
+			spin_unlock(&peer->lock);
 
 			mars_trigger();
 
@@ -1774,18 +1771,17 @@ void from_remote_trigger(void)
 {
 	struct list_head *tmp;
 	int count = 0;
-	unsigned long flags;
 
 	_make_alive();
 
 	// TODO: replace peer_lock with rw_lock
-	traced_lock(&peer_lock, flags);
+	spin_lock(&peer_lock);
 	for (tmp = peer_anchor.next; tmp != &peer_anchor; tmp = tmp->next) {
 		struct mars_peerinfo *peer = container_of(tmp, struct mars_peerinfo, peer_head);
 		peer->from_remote_trigger = true;
 		count++;
 	}
-	traced_unlock(&peer_lock, flags);
+	spin_unlock(&peer_lock);
 
 	MARS_DBG("got trigger for %d peers\n", count);
 	wake_up_interruptible_all(&remote_event);
@@ -1797,16 +1793,15 @@ void __mars_remote_trigger(void)
 {
 	struct list_head *tmp;
 	int count = 0;
-	unsigned long flags;
 
 	// TODO: replace peer_lock with rw_lock
-	traced_lock(&peer_lock, flags);
+	spin_lock(&peer_lock);
 	for (tmp = peer_anchor.next; tmp != &peer_anchor; tmp = tmp->next) {
 		struct mars_peerinfo *peer = container_of(tmp, struct mars_peerinfo, peer_head);
 		peer->to_remote_trigger = true;
 		count++;
 	}
-	traced_unlock(&peer_lock, flags);
+	spin_unlock(&peer_lock);
 
 	MARS_DBG("triggered %d peers\n", count);
 	wake_up_interruptible_all(&remote_event);
@@ -1844,7 +1839,6 @@ static int _kill_peer(void *buf, struct mars_dent *dent)
 	LIST_HEAD(tmp_list);
 	struct mars_global *global = buf;
 	struct mars_peerinfo *peer = dent->d_private;
-	unsigned long flags;
 
 	if (global->global_power.button) {
 		return 0;
@@ -1853,17 +1847,17 @@ static int _kill_peer(void *buf, struct mars_dent *dent)
 		return 0;
 	}
 
-	traced_lock(&peer_lock, flags);
+	spin_lock(&peer_lock);
 	list_del_init(&peer->peer_head);
-	traced_unlock(&peer_lock, flags);
+	spin_unlock(&peer_lock);
 
 	MARS_INF("stopping peer thread...\n");
 	if (peer->peer_thread) {
 		brick_thread_stop(peer->peer_thread);
 	}
-	traced_lock(&peer->lock, flags);
+	spin_lock(&peer->lock);
 	list_replace_init(&peer->remote_dent_list, &tmp_list);
-	traced_unlock(&peer->lock, flags);
+	spin_unlock(&peer->lock);
 	mars_free_dent_all(NULL, &tmp_list);
 	brick_string_free(peer->peer);
 	brick_string_free(peer->path);
@@ -1894,8 +1888,6 @@ static int _make_peer(struct mars_global *global, struct mars_dent *dent, char *
 
 	MARS_DBG("peer '%s'\n", mypeer);
 	if (!dent->d_private) {
-		unsigned long flags;
-
 		dent->d_private = brick_zmem_alloc(sizeof(struct mars_peerinfo));
 		if (!dent->d_private) {
 			MARS_ERR("no memory for peer structure\n");
@@ -1911,9 +1903,9 @@ static int _make_peer(struct mars_global *global, struct mars_dent *dent, char *
 		INIT_LIST_HEAD(&peer->peer_head);
 		INIT_LIST_HEAD(&peer->remote_dent_list);
 
-		traced_lock(&peer_lock, flags);
+		spin_lock(&peer_lock);
 		list_add_tail(&peer->peer_head, &peer_anchor);
-		traced_unlock(&peer_lock, flags);
+		spin_unlock(&peer_lock);
 	}
 
 	peer = dent->d_private;

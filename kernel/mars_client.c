@@ -214,17 +214,16 @@ static
 void _hash_insert(struct client_output *output, struct client_mref_aspect *mref_a)
 {
 	struct mref_object *mref = mref_a->object;
-	unsigned long flags;
 	int hash_index;
 
-	traced_lock(&output->lock, flags);
+	spin_lock(&output->lock);
 	list_del(&mref_a->io_head);
 	list_add_tail(&mref_a->io_head, &output->mref_list);
 	list_del(&mref_a->hash_head);
 	mref->ref_id = ++output->last_id;
 	hash_index = mref->ref_id % CLIENT_HASH_MAX;
 	list_add_tail(&mref_a->hash_head, &output->hash_table[hash_index]);
-	traced_unlock(&output->lock, flags);
+	spin_unlock(&output->lock);
 }
 
 static void client_ref_io(struct client_output *output, struct mref_object *mref)
@@ -276,7 +275,6 @@ int receiver_thread(void *data)
 		struct list_head *tmp;
 		struct client_mref_aspect *mref_a = NULL;
 		struct mref_object *mref = NULL;
-		unsigned long flags;
 
 		status = mars_recv_struct(&output->socket, &cmd, mars_cmd_meta);
 		MARS_IO("got cmd = %d status = %d\n", cmd.cmd_code, status);
@@ -298,13 +296,13 @@ int receiver_thread(void *data)
 		{
 			int hash_index = cmd.cmd_int1 % CLIENT_HASH_MAX;
 
-			traced_lock(&output->lock, flags);
+			spin_lock(&output->lock);
 			for (tmp = output->hash_table[hash_index].next; tmp != &output->hash_table[hash_index]; tmp = tmp->next) {
 				struct mref_object *tmp_mref;
 				mref_a = container_of(tmp, struct client_mref_aspect, hash_head);
 				tmp_mref = mref_a->object;
 				if (unlikely(!tmp_mref)) {
-					traced_unlock(&output->lock, flags);
+					spin_unlock(&output->lock);
 					MARS_ERR("bad internal mref pointer\n");
 					status = -EBADR;
 					goto done;
@@ -316,7 +314,7 @@ int receiver_thread(void *data)
 					break;
 				}
 			}
-			traced_unlock(&output->lock, flags);
+			spin_unlock(&output->lock);
 
 			if (unlikely(!mref)) {
 				MARS_WRN("got unknown id = %d for callback\n", cmd.cmd_int1);
@@ -380,9 +378,7 @@ int receiver_thread(void *data)
 static
 void _do_resubmit(struct client_output *output)
 {
-	unsigned long flags;
-
-	traced_lock(&output->lock, flags);
+	spin_lock(&output->lock);
 	if (!list_empty(&output->wait_list)) {
 		struct list_head *first = output->wait_list.next;
 		struct list_head *last = output->wait_list.prev;
@@ -393,7 +389,7 @@ void _do_resubmit(struct client_output *output)
 		INIT_LIST_HEAD(&output->wait_list);
 		MARS_IO("done re-submit %p %p\n", first, last);
 	}
-	traced_unlock(&output->lock, flags);
+	spin_unlock(&output->lock);
 }
 
 static
@@ -405,7 +401,6 @@ void _do_timeout(struct client_output *output, struct list_head *anchor, bool fo
 	LIST_HEAD(tmp_list);
 	int rounds = 0;
 	long io_timeout = brick->io_timeout;
-	unsigned long flags;
 
 	if (io_timeout <= 0)
 		io_timeout = global_net_io_timeout;
@@ -418,7 +413,7 @@ void _do_timeout(struct client_output *output, struct list_head *anchor, bool fo
 	
 	io_timeout *= HZ;
 	
-	traced_lock(&output->lock, flags);
+	spin_lock(&output->lock);
 	for (tmp = anchor->next, next = tmp->next; tmp != anchor; tmp = next, next = tmp->next) {
 		struct client_mref_aspect *mref_a;
 
@@ -433,7 +428,7 @@ void _do_timeout(struct client_output *output, struct list_head *anchor, bool fo
 		list_del_init(&mref_a->io_head);
 		list_add_tail(&mref_a->tmp_head, &tmp_list);
 	}
-	traced_unlock(&output->lock, flags);
+	spin_unlock(&output->lock);
 
 	while (!list_empty(&tmp_list)) {
 		struct client_mref_aspect *mref_a;
@@ -466,7 +461,6 @@ static int sender_thread(void *data)
 {
 	struct client_output *output = data;
 	struct client_brick *brick = output->brick;
-	unsigned long flags;
 	bool do_kill = false;
 	int status = 0;
 
@@ -526,16 +520,16 @@ static int sender_thread(void *data)
 
 		/* Grab the next mref from the queue
 		 */
-		traced_lock(&output->lock, flags);
+		spin_lock(&output->lock);
 		if (list_empty(&output->mref_list)) {
-			traced_unlock(&output->lock, flags);
+			spin_unlock(&output->lock);
 			continue;
 		}
 		tmp = output->mref_list.next;
 		list_del(tmp);
 		list_add(tmp, &output->wait_list);
 		mref_a = container_of(tmp, struct client_mref_aspect, io_head);
-		traced_unlock(&output->lock, flags);
+		spin_unlock(&output->lock);
 
 		mref = mref_a->object;
 

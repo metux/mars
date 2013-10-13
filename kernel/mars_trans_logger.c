@@ -2690,7 +2690,6 @@ void replay_endio(struct generic_callback *cb)
 {
 	struct trans_logger_mref_aspect *mref_a = cb->cb_private;
 	struct trans_logger_brick *brick;
-	unsigned long flags;
 
 	CHECK_PTR(mref_a, err);
 	brick = mref_a->my_brick;
@@ -2701,9 +2700,9 @@ void replay_endio(struct generic_callback *cb)
 		goto done;
 	}
 
-	traced_lock(&brick->replay_lock, flags);
+	spin_lock(&brick->replay_lock);
 	list_del_init(&mref_a->replay_head);
-	traced_unlock(&brick->replay_lock, flags);
+	spin_unlock(&brick->replay_lock);
 
 	atomic_dec(&brick->replay_count);
  done:
@@ -2719,11 +2718,10 @@ bool _has_conflict(struct trans_logger_brick *brick, struct trans_logger_mref_as
 	struct mref_object *mref = mref_a->object;
 	struct list_head *tmp;
 	bool res = false;
-	unsigned long flags;
 
 	// NOTE: replacing this by rwlock_t will not gain anything, because there exists at most 1 reader at any time
 
-	traced_lock(&brick->replay_lock, flags);
+	spin_lock(&brick->replay_lock);
 
 	for (tmp = brick->replay_list.next; tmp != &brick->replay_list; tmp = tmp->next) {
 		struct trans_logger_mref_aspect *tmp_a;
@@ -2737,7 +2735,7 @@ bool _has_conflict(struct trans_logger_brick *brick, struct trans_logger_mref_as
 		}
 	}
 
-	traced_unlock(&brick->replay_lock, flags);
+	spin_unlock(&brick->replay_lock);
 	return res;
 }
 
@@ -2747,7 +2745,6 @@ void wait_replay(struct trans_logger_brick *brick, struct trans_logger_mref_aspe
 	const int max = 512; // limit parallelism somewhat
 	int conflicts = 0;
 	bool ok = false;
-	unsigned long flags;
 
 	wait_event_interruptible_timeout(brick->worker_event,
 					 atomic_read(&brick->replay_count) < max
@@ -2759,9 +2756,9 @@ void wait_replay(struct trans_logger_brick *brick, struct trans_logger_mref_aspe
 	if (conflicts)
 		atomic_inc(&brick->total_replay_conflict_count);
 
-	traced_lock(&brick->replay_lock, flags);
+	spin_lock(&brick->replay_lock);
 	list_add(&mref_a->replay_head, &brick->replay_list);
-	traced_unlock(&brick->replay_lock, flags);
+	spin_unlock(&brick->replay_lock);
 }
 
 static noinline
