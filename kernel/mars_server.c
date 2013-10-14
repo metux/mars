@@ -10,7 +10,8 @@
 #include <linux/module.h>
 #include <linux/string.h>
 
-#define _STRATEGY
+#include "sy_old/strategy.h"
+
 #include "mars.h"
 #include "mars_bio.h"
 #include "mars_aio.h"

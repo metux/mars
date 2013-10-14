@@ -286,12 +286,13 @@ extern const struct meta mars_timespec_meta[];
 
 /////////////////////////////////////////////////////////////////////////
 
-#ifdef _STRATEGY
-#include "sy_old/strategy.h"
-#endif
+/* Some minimal upcalls from generic IO layer to the strategy layer.
+ * TODO: abstract away.
+ */
 
 extern void mars_power_led_on(struct mars_brick *brick, bool val);
 extern void mars_power_led_off(struct mars_brick *brick, bool val);
+
 /* this should disappear!
  */
 extern void (*_mars_trigger)(void);
