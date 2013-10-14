@@ -68,16 +68,12 @@ EXPORT_SYMBOL_GPL(aio_sync_mode);
 static inline
 void _enqueue(struct aio_threadinfo *tinfo, struct aio_mref_aspect *mref_a, int prio, bool at_end)
 {
-#if 1
 	prio++;
 	if (unlikely(prio < 0)) {
 		prio = 0;
 	} else if (unlikely(prio >= MARS_PRIO_NR)) {
 		prio = MARS_PRIO_NR - 1;
 	}
-#else
-	prio = 0;
-#endif
 
 	mref_a->enqueue_stamp = cpu_clock(raw_smp_processor_id());
 
@@ -241,9 +237,6 @@ static int aio_ref_get(struct aio_output *output, struct mref_object *mref)
 			return -ENOMEM;
 		}
 		mref->ref_data = brick_block_alloc(mref->ref_pos, (mref_a->alloc_len = mref->ref_len));
-#if 0 // ???
-		mref->ref_flags = 0;
-#endif
 		mref_a->do_dealloc = true;
 		atomic_inc(&output->total_alloc_count);
 		atomic_inc(&output->alloc_count);
@@ -610,7 +603,6 @@ static int aio_event_thread(void *data)
 	int err = -ENOMEM;
 	
 	MARS_DBG("event thread has started.\n");
-	//set_user_nice(current, -20);
 
 	use_fake_mm();
 	if (!current->mm)
