@@ -261,8 +261,6 @@ int _make_mref(struct copy_brick *brick, int index, int queue, void *data, loff_
 
 	mref = copy_alloc_mref(brick);
 	status = -ENOMEM;
-	if (unlikely(!mref))
-		goto done;
 
 	mref_a = copy_mref_get_aspect(brick, mref);
 	if (unlikely(!mref_a)) {
@@ -826,8 +824,6 @@ static
 char *copy_statistics(struct copy_brick *brick, int verbose)
 {
 	char *res = brick_string_alloc(1024);
-        if (!res)
-                return NULL;
 	
 	snprintf(res, 1024,
 		 "copy_start = %lld "
@@ -908,10 +904,6 @@ static int copy_brick_construct(struct copy_brick *brick)
 	int i;
 
 	brick->st = brick_block_alloc(0, PAGE_SIZE);
-	if (unlikely(!brick->st)) {
-		MARS_ERR("cannot allocate state directory table.\n");
-		return -ENOMEM;
-	}
 	memset(brick->st, 0, PAGE_SIZE);
 
 	for (i = 0; i < MAX_SUB_TABLES; i++) {
@@ -926,11 +918,6 @@ static int copy_brick_construct(struct copy_brick *brick)
 
 		sub_table = brick_block_alloc(0, PAGE_SIZE);
 		brick->st[i] = sub_table;
-		if (unlikely(!sub_table)) {
-			MARS_ERR("cannot allocate state subtable %d.\n", i);
-			_free_pages(brick);
-			return -ENOMEM;
-		}
 		memset(sub_table, 0, PAGE_SIZE);
 	}
 

@@ -199,9 +199,6 @@ char *mars_readlink(const char *newpath)
 	struct inode *inode;
 	int status = -ENOMEM;
 
-	if (unlikely(!res))
-		goto done;
-
 	oldfs = get_fs();
 	set_fs(get_ds());
 
@@ -230,7 +227,7 @@ done_put:
 	
 done_fs:
 	set_fs(oldfs);
-done:
+
 	if (unlikely(status < 0)) {
 		brick_string_free(res);
 		res = NULL;
@@ -611,8 +608,6 @@ int mars_filler(void *__buf, const char *name, int namlen, loff_t offset,
 
 	pathlen = cookie->pathlen;
 	newpath = brick_string_alloc(pathlen + namlen + 2);
-	if (unlikely(!newpath))
-		goto err_mem0;
 	memcpy(newpath, cookie->path, pathlen);
 	newpath[pathlen++] = '/';
 	memcpy(newpath + pathlen, name, namlen);
@@ -646,18 +641,11 @@ int mars_filler(void *__buf, const char *name, int namlen, loff_t offset,
 	}
 
 	dent = brick_zmem_alloc(cookie->allocsize);
-	if (unlikely(!dent))
-		goto err_mem1;
-
 	dent->d_name = brick_string_alloc(namlen + 1);
-	if (unlikely(!dent->d_name))
-		goto err_mem2;
 	memcpy(dent->d_name, name, namlen);
 	dent->d_name[namlen] = '\0';
 	dent->d_namelen = namlen;
 	dent->d_rest = brick_strdup(dent->d_name + prefix);
-	if (unlikely(!dent->d_rest))
-		goto err_mem3;
 
 	dent->d_path = newpath;
 	newpath = NULL;
@@ -682,15 +670,6 @@ found:
 	dent->d_use_channel = use_channel;
 	brick_string_free(newpath);
 	return 0;
-
-err_mem3:
-	brick_mem_free(dent->d_name);
-err_mem2:
-	brick_mem_free(dent);
-err_mem1:
-	brick_string_free(newpath);
-err_mem0:
-	return -ENOMEM;
 }
 
 static int _mars_readdir(struct mars_cookie *cookie)
@@ -933,12 +912,14 @@ int mars_find_dent_all(struct mars_global *global, char *prefix, struct mars_den
 	int max = 1024; // provisionary
 	int count = 0;
 	struct list_head *tmp;
-	struct mars_dent **res = brick_zmem_alloc(max * sizeof(void*));
+	struct mars_dent **res;
 	int prefix_len = strlen(prefix);
 
-	*table = res;
-	if (unlikely(!res || !global))
+	if (unlikely(!global))
 		goto done;
+
+	res = brick_zmem_alloc(max * sizeof(void*));
+	*table = res;
 
 	down_read(&global->dent_mutex);
 	for (tmp = global->dent_anchor.next; tmp != &global->dent_anchor; tmp = tmp->next) {
@@ -1145,11 +1126,6 @@ struct mars_brick *mars_make_brick(struct mars_global *global, struct mars_dent 
 	int i;
 	int status;
 	
-	if (!name) {
-		MARS_ERR("cannot allocate space for name\n");
-		return NULL;
-	}
-
 	size = brick_type->brick_size +
 		(brick_type->max_inputs + brick_type->max_outputs) * sizeof(void*);
 	input_types = brick_type->default_input_types;
@@ -1180,17 +1156,9 @@ struct mars_brick *mars_make_brick(struct mars_global *global, struct mars_dent 
 	}
 	
 	res = brick_zmem_alloc(size);
-	if (!res) {
-		MARS_ERR("cannot grab %d bytes for brick type '%s'\n", size, brick_type->type_name);
-		goto err_name;
-	}
 	res->global = global;
 	INIT_LIST_HEAD(&res->dent_brick_link);
 	res->brick_path = brick_strdup(path);
-	if (!res->brick_path) {
-		MARS_ERR("cannot grab memory for path '%s'\n", path);
-		goto err_res;
-	}
 
 	status = generic_brick_init_full(res, size, brick_type, NULL, NULL, names);
 	MARS_DBG("brick '%s' init '%s' '%s' (status=%d)\n", brick_type->type_name, path, name, status);
@@ -1214,7 +1182,6 @@ struct mars_brick *mars_make_brick(struct mars_global *global, struct mars_dent 
 
 err_path:
 	brick_string_free(res->brick_path);
-err_res:
 	brick_mem_free(res);
 err_name:
 	brick_string_free(name);
@@ -1406,9 +1373,8 @@ char *_vpath_make(int line, const char *fmt, va_list *args)
 {
 	char *res = _brick_string_alloc(MARS_PATH_MAX, line);
 
-	if (likely(res)) {
-		vsnprintf(res, MARS_PATH_MAX, fmt, *args);
-	}
+	vsnprintf(res, MARS_PATH_MAX, fmt, *args);
+
 	return res;
 }
 EXPORT_SYMBOL_GPL(_vpath_make);

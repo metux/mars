@@ -193,19 +193,11 @@ void *log_reserve(struct log_status *logst, struct log_header *lh)
 			brick_mem_free(logst->private);
 		}
 		logst->private = brick_zmem_alloc(sizeof(struct log_cb_info));
-		if (unlikely(!logst->private)) {
-			MARS_ERR("no memory\n");
-			goto err;
-		}
 		cb_info = logst->private;
 		sema_init(&cb_info->mutex, 1);
 		atomic_set(&cb_info->refcount, 2);
 
 		mref = mars_alloc_mref(logst->brick);
-		if (unlikely(!mref)) {
-			MARS_ERR("no mref\n");
-			goto err;
-		}
 		cb_info->mref = mref;
 
 		mref->ref_pos = logst->log_pos;
@@ -393,10 +385,6 @@ restart:
 		}
 
 		mref = mars_alloc_mref(logst->brick);
-		if (unlikely(!mref)) {
-			MARS_ERR("no mref\n");
-			goto done;
-		}
 		mref->ref_pos = logst->log_pos;
 		mref->ref_len = logst->chunk_size;
 		mref->ref_prio = logst->io_prio;
