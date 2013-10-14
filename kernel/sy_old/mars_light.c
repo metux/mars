@@ -2,7 +2,6 @@
 
 //#define BRICK_DEBUGGING
 #define MARS_DEBUGGING
-//#define IO_DEBUGGING
 
 /* This MUST be updated whenever INCOMPATIBLE changes are made to the
  * symlink tree in /mars/ .
@@ -1470,8 +1469,6 @@ int run_bone(struct mars_peerinfo *peer, struct mars_dent *remote_dent)
 		update_mtime = timespec_compare(&remote_dent->new_stat.mtime, &local_stat.mtime) > 0;
 		update_ctime = timespec_compare(&remote_dent->new_stat.ctime, &local_stat.ctime) > 0;
 
-		MARS_IO("timestamps '%s' remote = %ld.%09ld local = %ld.%09ld\n", remote_dent->d_path, remote_dent->new_stat.mtime.tv_sec, remote_dent->new_stat.mtime.tv_nsec, local_stat.mtime.tv_sec, local_stat.mtime.tv_nsec);
-
 		if ((remote_dent->new_stat.mode & S_IRWXU) !=
 		   (local_stat.mode & S_IRWXU) &&
 		   update_ctime) {
@@ -1558,7 +1555,6 @@ int run_bones(struct mars_peerinfo *peer)
 			MARS_DBG("NULL\n");
 			continue;
 		}
-		MARS_IO("path = '%s'\n", remote_dent->d_path);
 		status = run_bone(peer, remote_dent);
 		if (status > 0)
 			run_trigger = true;

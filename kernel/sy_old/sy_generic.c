@@ -2,7 +2,6 @@
 
 //#define BRICK_DEBUGGING
 #define MARS_DEBUGGING
-//#define IO_DEBUGGING
 #define STAT_DEBUGGING
 
 #include <linux/kernel.h>
@@ -554,15 +553,12 @@ int get_inode(char *newpath, struct mars_dent *dent)
 		status = -ENOMEM;
 		link = brick_string_alloc(0);
 		if (likely(link)) {
-			MARS_IO("len = %d\n", len);
 			status = inode->i_op->readlink(path.dentry, link, len + 1);
 			link[len] = '\0';
 			if (status < 0 ||
 			   (dent->new_link && !strncmp(dent->new_link, link, len))) {
-				//MARS_IO("symlink no change '%s' -> '%s' (%s) status = %d\n", newpath, link, dent->new_link ? dent->new_link : "", status);
 				brick_string_free(link);
 			} else {
-				MARS_IO("symlink '%s' -> '%s' (%s) status = %d\n", newpath, link, dent->new_link ? dent->new_link : "", status);
 				brick_string_free(dent->old_link);
 				dent->old_link = dent->new_link;
 				dent->new_link = link;
@@ -570,9 +566,6 @@ int get_inode(char *newpath, struct mars_dent *dent)
 		}
 		path_put(&path);
 	}
-
-	if (dent->new_link)
-		MARS_IO("symlink '%s'\n", dent->new_link);
 
  done:
 	set_fs(oldfs);
@@ -596,8 +589,6 @@ int mars_filler(void *__buf, const char *name, int namlen, loff_t offset,
 	int serial = 0;
 	bool use_channel = false;
 
-	MARS_IO("ino = %llu len = %d offset = %lld type = %u\n", ino, namlen, offset, d_type);
-
 	if (name[0] == '.') {
 		return 0;
 	}
@@ -613,8 +604,6 @@ int mars_filler(void *__buf, const char *name, int namlen, loff_t offset,
 	memcpy(newpath + pathlen, name, namlen);
 	pathlen += namlen;
 	newpath[pathlen] = '\0';
-
-	MARS_IO("path = '%s'\n", newpath);
 
 	for (tmp = anchor->next; tmp != anchor; tmp = tmp->next) {
 		int cmp;
@@ -692,7 +681,6 @@ static int _mars_readdir(struct mars_cookie *cookie)
 
 	for (;;) {
 		status = vfs_readdir(f, mars_filler, cookie);
-		MARS_IO("vfs_readdir() status = %d\n", status);
 		if (status <= 0)
 			break;
 	}
@@ -734,7 +722,6 @@ int mars_dent_work(struct mars_global *global, char *dirname, int allocsize, mar
 	down_write(&global->dent_mutex);
 
 restart:
-	MARS_IO("at restart\n");
 	found_dir = false;
 
 	/* First, get all the inode information in a separate pass
@@ -752,7 +739,6 @@ restart:
 
 		bind_to_dent(dent, &say_channel);
 
-		//MARS_IO("reading inode '%s'\n", dent->d_path);
 		status = get_inode(dent->d_path, dent);
 		total_status |= status;
 
@@ -786,7 +772,6 @@ restart:
 	 * Here is a chance to mark some dents for removal
 	 * (or other types of non-destructive operations)
 	 */
-	MARS_IO("prep pass\n");
 	for (tmp = global->dent_anchor.next, next = tmp->next; tmp != &global->dent_anchor; tmp = next, next = next->next) {
 		struct mars_dent *dent = container_of(tmp, struct mars_dent, dent_link);
 
@@ -794,18 +779,14 @@ restart:
 
 		bind_to_dent(dent, &say_channel);
 
-		//MARS_IO("forward prepare '%s'\n", dent->d_path);
 		status = worker(buf, dent, true, false);
-		if (status) {
-			//MARS_IO("forward treat '%s' status = %d\n", dent->d_path, status);
-		}
+
 		total_status |= status;
 	}
 	bind_to_dent(NULL, &say_channel);
 
 	/* Remove all dents marked for removal.
 	 */
-	MARS_IO("removal pass\n");
 	for (tmp = global->dent_anchor.next, next = tmp->next; tmp != &global->dent_anchor; tmp = next, next = next->next) {
 		struct mars_dent *dent = container_of(tmp, struct mars_dent, dent_link);
 		if (!dent->d_killme)
@@ -824,7 +805,6 @@ restart:
 	/* Forward pass.
 	*/
 	down_read(&global->dent_mutex);
-	MARS_IO("forward pass\n");
 	for (tmp = global->dent_anchor.next, next = tmp->next; tmp != &global->dent_anchor; tmp = next, next = next->next) {
 		struct mars_dent *dent = container_of(tmp, struct mars_dent, dent_link);
 		up_read(&global->dent_mutex);
@@ -833,11 +813,8 @@ restart:
 
 		bind_to_dent(dent, &say_channel);
 
-		//MARS_IO("forward treat '%s'\n", dent->d_path);
 		status = worker(buf, dent, false, false);
-		if (status) {
-			//MARS_IO("forward treat '%s' status = %d\n", dent->d_path, status);
-		}
+
 		down_read(&global->dent_mutex);
 		total_status |= status;
 	}
@@ -845,7 +822,6 @@ restart:
 
 	/* Backward pass.
 	*/
-	MARS_IO("forward pass\n");
 	for (tmp = global->dent_anchor.prev, next = tmp->prev; tmp != &global->dent_anchor; tmp = next, next = next->prev) {
 		struct mars_dent *dent = container_of(tmp, struct mars_dent, dent_link);
 		up_read(&global->dent_mutex);
@@ -854,11 +830,8 @@ restart:
 
 		bind_to_dent(dent, &say_channel);
 
-		//MARS_IO("backward treat '%s'\n", dent->d_path);
 		status = worker(buf, dent, false, true);
-		if (status) {
-			//MARS_IO("backward treat '%s' status = %d\n", dent->d_path, status);
-		}
+
 		down_read(&global->dent_mutex);
 		total_status |= status;
 		if (status < 0) {
@@ -869,7 +842,6 @@ restart:
 	bind_to_dent(NULL, &say_channel);
 
 done:
-	MARS_IO("total_status = %d\n", total_status);
 	return total_status;
 }
 EXPORT_SYMBOL_GPL(mars_dent_work);
@@ -954,8 +926,6 @@ void mars_free_dent(struct mars_dent *dent)
 {
 	int i;
 	
-	MARS_IO("%p path='%s'\n", dent, dent->d_path);
-
 	mars_kill_dent(dent);
 
 	CHECK_HEAD_EMPTY(&dent->dent_link);
@@ -991,7 +961,6 @@ void mars_free_dent_all(struct mars_global *global, struct list_head *anchor)
 		struct mars_dent *dent;
 		dent = container_of(tmp_list.prev, struct mars_dent, dent_link);
 		list_del_init(&dent->dent_link);
-		MARS_IO("freeing dent %p\n", dent);
 		mars_free_dent(dent);
 	}
 }
@@ -1437,7 +1406,6 @@ struct mars_brick *path_find_brick(struct mars_global *global, const void *brick
 	}
 	res = mars_find_brick(global, brick_type, fullpath);
 	brick_string_free(fullpath);
-	MARS_IO("search for '%s' found = %p\n", fullpath, res);
 	return res;
 }
 EXPORT_SYMBOL_GPL(path_find_brick);

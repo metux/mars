@@ -6,7 +6,6 @@
 
 //#define BRICK_DEBUGGING
 //#define MARS_DEBUGGING
-//#define IO_DEBUGGING
 
 #include "lib_log.h"
 
@@ -95,8 +94,6 @@ void log_write_endio(struct generic_callback *cb)
 	logst = cb_info->logst;
 	CHECK_PTR(logst, done);
 
-	MARS_IO("nr_cb = %d\n", cb_info->nr_cb);
-
 	_do_callbacks(cb_info, cb->cb_error);
 
  done:
@@ -177,8 +174,6 @@ void *log_reserve(struct log_status *logst, struct log_header *lh)
 		MARS_ERR("trying to write %d bytes, max allowed = %d\n", lh->l_len, logst->max_size);
 		goto err;
 	}
-
-	MARS_IO("reserving %d bytes at %lld\n", lh->l_len, logst->log_pos);
 
 	mref = logst->log_mref;
 	if ((mref && total_len > mref->ref_len - logst->offset)

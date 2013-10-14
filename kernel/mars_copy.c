@@ -4,7 +4,6 @@
 
 //#define BRICK_DEBUGGING
 //#define MARS_DEBUGGING
-//#define IO_DEBUGGING
 
 #include <linux/kernel.h>
 #include <linux/module.h>
@@ -199,7 +198,6 @@ void copy_endio(struct generic_callback *cb)
 	index = GET_INDEX(mref->ref_pos);
 	st = &GET_STATE(brick, index);
 
-	MARS_IO("queue = %d index = %d pos = %lld status = %d\n", queue, index, mref->ref_pos, cb->cb_error);
 	if (unlikely(queue < 0 || queue >= 2)) {
 		MARS_ERR("bad queue %d\n", queue);
 		error = -EINVAL;
@@ -306,8 +304,6 @@ int _make_mref(struct copy_brick *brick, int index, int queue, void *data, loff_
 		GET_STATE(brick, index).len = mref->ref_len;
 	}
 
-	//MARS_IO("queue = %d index = %d pos = %lld len = %d rw = %d\n", queue, index, mref->ref_pos, mref->ref_len, rw);
-
 	GET_STATE(brick, index).active[queue] = true;
 	if (rw) {
 		atomic_inc(&brick->copy_write_flight);
@@ -358,20 +354,6 @@ int _next_state(struct copy_brick *brick, int index, loff_t pos)
 
 restart:
 	state = next_state;
-
-	MARS_IO("ENTER index=%d state=%d pos=%lld table[0]=%p table[1]=%p active[0]=%d active[1]=%d writeout=%d prev=%d len=%d error=%d do_restart=%d\n",
-		index,
-		state,
-		pos,
-		st->table[0],
-		st->table[1],
-		st->active[0],
-		st->active[1],
-		st->writeout,
-		st->prev,
-		st->len,
-		st->error,
-		do_restart);
 
 	do_restart = false;
 
@@ -539,7 +521,6 @@ restart:
 	case COPY_STATE_WRITTEN:
 		mref1 = st->table[1];
 		if (!mref1) { // idempotence: wait by unchanged state
-			MARS_IO("irrelevant\n");
 			goto idle;
 		}
 		st->writeout = true;
@@ -584,20 +565,6 @@ idle:
 		progress++;
 	}
 
-	MARS_IO("LEAVE index=%d state=%d next_state=%d table[0]=%p table[1]=%p active[0]=%d active[1]=%d writeout=%d prev=%d len=%d error=%d progress=%d\n",
-		index,
-		st->state,
-		next_state,
-		st->table[0],
-		st->table[1],
-		st->active[0],
-		st->active[1],
-		st->writeout,
-		st->prev,
-		st->len,
-		st->error,
-		progress);
-
 	// save the resulting state
 	st->state = next_state;
 	return progress;
@@ -629,7 +596,6 @@ int _run_copy(struct copy_brick *brick)
 	/* Do at most max iterations in the below loop
 	 */
 	max = NR_COPY_REQUESTS - atomic_read(&brick->io_flight) * 2;
-	MARS_IO("max = %d\n", max);
 
 	prev = -1;
 	progress = 0;
@@ -677,7 +643,6 @@ int _run_copy(struct copy_brick *brick)
 		}
 		if (count > 0) {
 			brick->copy_last += count;
-			MARS_IO("new copy_last += %d => %lld\n", count, brick->copy_last);
 			_update_percent(brick);
 		}
 	}
