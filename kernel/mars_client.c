@@ -4,7 +4,6 @@
 
 //#define BRICK_DEBUGGING
 //#define MARS_DEBUGGING
-//#define IO_DEBUGGING
 
 #include <linux/kernel.h>
 #include <linux/module.h>
@@ -223,12 +222,7 @@ static void client_ref_io(struct client_output *output, struct mref_object *mref
 	}
 
 	while (output->brick->max_flying > 0 && atomic_read(&output->fly_count) > output->brick->max_flying) {
-		MARS_IO("sleeping request pos = %lld len = %d rw = %d (flying = %d)\n", mref->ref_pos, mref->ref_len, mref->ref_rw, atomic_read(&output->fly_count));
-#ifdef IO_DEBUGGING
-		brick_msleep(3000);
-#else
 		brick_msleep(1000 * 2 / HZ);
-#endif
 	}
 
 	atomic_inc(&mars_global_io_flying);
@@ -237,8 +231,6 @@ static void client_ref_io(struct client_output *output, struct mref_object *mref
 
 	mref_a->submit_jiffies = jiffies;
 	_hash_insert(output, mref_a);
-
-	MARS_IO("added request id = %d pos = %lld len = %d rw = %d (flying = %d)\n", mref->ref_id, mref->ref_pos, mref->ref_len, mref->ref_rw, atomic_read(&output->fly_count));
 
 	wake_up_interruptible(&output->event);
 
@@ -263,7 +255,6 @@ int receiver_thread(void *data)
 		struct mref_object *mref = NULL;
 
 		status = mars_recv_struct(&output->socket, &cmd, mars_cmd_meta);
-		MARS_IO("got cmd = %d status = %d\n", cmd.cmd_code, status);
 		if (status < 0)
 			goto done;
 
@@ -308,10 +299,7 @@ int receiver_thread(void *data)
 				goto done;
 			}
 
-			MARS_IO("got callback id = %d, old pos = %lld len = %d rw = %d\n", mref->ref_id, mref->ref_pos, mref->ref_len, mref->ref_rw);
-
 			status = mars_recv_cb(&output->socket, mref, &cmd);
-			MARS_IO("new status = %d, pos = %lld len = %d rw = %d\n", status, mref->ref_pos, mref->ref_len, mref->ref_rw);
 			if (unlikely(status < 0)) {
 				MARS_WRN("interrupted data transfer during callback, status = %d\n", status);
 				_hash_insert(output, mref_a);
@@ -373,7 +361,6 @@ void _do_resubmit(struct client_output *output)
 		list_connect(&output->mref_list, first);
 		list_connect(last, old_start);
 		INIT_LIST_HEAD(&output->wait_list);
-		MARS_IO("done re-submit %p %p\n", first, last);
 	}
 	spin_unlock(&output->lock);
 }
@@ -466,7 +453,6 @@ static int sender_thread(void *data)
 			}
 
 			status = _connect(output, brick->brick_name);
-			MARS_IO("connect status = %d\n", status);
 			if (unlikely(status < 0)) {
 				brick_msleep(3000);
 				_do_timeout(output, &output->wait_list, false);
@@ -477,7 +463,6 @@ static int sender_thread(void *data)
 			do_kill = true;
 			/* Re-Submit any waiting requests
 			 */
-			MARS_IO("re-submit\n");
 			_do_resubmit(output);
 		}
 		
@@ -526,10 +511,7 @@ static int sender_thread(void *data)
 			mars_limit_sleep(&client_limiter, amount);
 		}
 
-		MARS_IO("sending mref, id = %d pos = %lld len = %d rw = %d\n", mref->ref_id, mref->ref_pos, mref->ref_len, mref->ref_rw);
-
 		status = mars_send_mref(&output->socket, mref);
-		MARS_IO("status = %d\n", status);
 		if (unlikely(status < 0)) {
 			// retry submission on next occasion..
 			MARS_WRN("sending failed, status = %d\n", status);

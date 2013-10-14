@@ -4,7 +4,6 @@
 
 //#define BRICK_DEBUGGING
 //#define MARS_DEBUGGING
-//#define IO_DEBUGGING
 
 #include <linux/kernel.h>
 #include <linux/module.h>
@@ -309,8 +308,6 @@ int handler_thread(void *data)
 			status = -EINTR;
 			goto clean;
 		}
-
-		MARS_IO("#%d cmd = %d\n", sock->s_debug_nr, cmd.cmd_code);
 
 		status = -EPROTO;
 		switch (cmd.cmd_code & CMD_FLAG_MASK) {

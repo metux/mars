@@ -2,7 +2,6 @@
 
 //#define BRICK_DEBUGGING
 #define MARS_DEBUGGING
-//#define IO_DEBUGGING
 
 /* This MUST be updated whenever INCOMPATIBLE changes are made to the
  * symlink tree in /mars/ .
@@ -1433,7 +1432,6 @@ int run_bone(struct mars_peerinfo *peer, struct mars_dent *remote_dent)
 	// check marker preventing concurrent updates from remote hosts when deletes are in progress
 	marker_path = backskip_replace(remote_dent->d_path, '/', true, "/.deleted-");
 	if (mars_stat(marker_path, &local_stat, true) >= 0) {
-		MARS_IO("marker '%s' exists, ignoring '%s'\n", marker_path, remote_dent->d_path);
 		goto done;
 	}
 
@@ -1444,13 +1442,10 @@ int run_bone(struct mars_peerinfo *peer, struct mars_dent *remote_dent)
 		update_mtime = timespec_compare(&remote_dent->new_stat.mtime, &local_stat.mtime) > 0;
 		update_ctime = timespec_compare(&remote_dent->new_stat.ctime, &local_stat.ctime) > 0;
 
-		MARS_IO("timestamps '%s' remote = %ld.%09ld local = %ld.%09ld\n", remote_dent->d_path, remote_dent->new_stat.mtime.tv_sec, remote_dent->new_stat.mtime.tv_nsec, local_stat.mtime.tv_sec, local_stat.mtime.tv_nsec);
-
 		if ((remote_dent->new_stat.mode & S_IRWXU) !=
 		   (local_stat.mode & S_IRWXU) &&
 		   update_ctime) {
 			mode_t newmode = local_stat.mode;
-			MARS_IO("chmod '%s' 0x%xd -> 0x%xd\n", remote_dent->d_path, newmode & S_IRWXU, remote_dent->new_stat.mode & S_IRWXU);
 			newmode &= ~S_IRWXU;
 			newmode |= (remote_dent->new_stat.mode & S_IRWXU);
 			mars_chmod(remote_dent->d_path, newmode);
@@ -1458,7 +1453,6 @@ int run_bone(struct mars_peerinfo *peer, struct mars_dent *remote_dent)
 		}
 
 		if (remote_dent->new_stat.uid != local_stat.uid && update_ctime) {
-			MARS_IO("lchown '%s' %d -> %d\n", remote_dent->d_path, local_stat.uid, remote_dent->new_stat.uid);
 			mars_lchown(remote_dent->d_path, remote_dent->new_stat.uid);
 			run_trigger = true;
 		}
@@ -1466,12 +1460,10 @@ int run_bone(struct mars_peerinfo *peer, struct mars_dent *remote_dent)
 
 	if (S_ISDIR(remote_dent->new_stat.mode)) {
 		if (!_is_usable_dir(remote_dent->d_name)) {
-			MARS_IO("ignoring directory '%s'\n", remote_dent->d_path);
 			goto done;
 		}
 		if (!stat_ok) {
 			status = mars_mkdir(remote_dent->d_path);
-			MARS_IO("create directory '%s' status = %d\n", remote_dent->d_path, status);
 			if (status >= 0) {
 				mars_chmod(remote_dent->d_path, remote_dent->new_stat.mode);
 				mars_lchown(remote_dent->d_path, remote_dent->new_stat.uid);
@@ -1480,7 +1472,6 @@ int run_bone(struct mars_peerinfo *peer, struct mars_dent *remote_dent)
 	} else if (S_ISLNK(remote_dent->new_stat.mode) && remote_dent->new_link) {
 		if (!stat_ok || update_mtime) {
 			status = mars_symlink(remote_dent->new_link, remote_dent->d_path, &remote_dent->new_stat.mtime, remote_dent->new_stat.uid);
-			MARS_IO("create symlink '%s' -> '%s' status = %d\n", remote_dent->d_path, remote_dent->new_link, status);
 			run_trigger = true;
 		}
 	} else if (S_ISREG(remote_dent->new_stat.mode) && _is_peer_logfile(remote_dent->d_name, my_id())) {
@@ -1489,18 +1480,14 @@ int run_bone(struct mars_peerinfo *peer, struct mars_dent *remote_dent)
 			struct mars_dent *parent = mars_find_dent(peer->global, parent_path);
 			struct mars_dent *local_dent = mars_find_dent(peer->global, remote_dent->d_path);
 			if (unlikely(!parent)) {
-				MARS_IO("ignoring non-existing local resource '%s'\n", parent_path);
 			// don't copy old / outdated logfiles
 			} else if (parent->d_private &&
 				   ((struct mars_rotate *)parent->d_private)->relevant_serial > remote_dent->d_serial) {
-				MARS_IO("ignoring outdated remote logfile '%s'\n", remote_dent->d_path);
 			} else {
 				status = check_logfile(peer->peer, remote_dent, local_dent, parent, local_stat.size);
 			}
 			brick_string_free(parent_path);
 		}
-	} else {
-		MARS_IO("ignoring '%s'\n", remote_dent->d_path);
 	}
 
  done:
@@ -1531,7 +1518,6 @@ int run_bones(struct mars_peerinfo *peer)
 			MARS_DBG("NULL\n");
 			continue;
 		}
-		MARS_IO("path = '%s'\n", remote_dent->d_path);
 		status = run_bone(peer, remote_dent);
 		if (status > 0)
 			run_trigger = true;
