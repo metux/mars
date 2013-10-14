@@ -96,7 +96,6 @@ void *__brick_mem_alloc(int len)
 #endif
 		res = _brick_block_alloc(0, len, 0);
 	} else {
-#ifdef CONFIG_MARS_MEM_RETRY
 		for (;;) {
 			res = kmalloc(len, GFP_BRICK);
 			if (likely(res))
@@ -105,13 +104,6 @@ void *__brick_mem_alloc(int len)
 		}
 #ifdef BRICK_DEBUG_MEM
 		atomic_inc(&phys_mem_alloc);
-#endif
-#else
-		res = kmalloc(len, GFP_BRICK);
-#ifdef BRICK_DEBUG_MEM
-		if (res)
-			atomic_inc(&phys_mem_alloc);
-#endif
 #endif
 	}
 	return res;
@@ -235,20 +227,16 @@ char *_brick_string_alloc(int len, int line)
 	len += sizeof(int) * 4;
 #endif
 
-#ifdef CONFIG_MARS_MEM_RETRY
 	for (;;) {
-#endif
 #ifdef CONFIG_MARS_DEBUG
 		res = kzalloc(len + 1024, GFP_BRICK);
 #else
 		res = kzalloc(len + 1, GFP_BRICK);
 #endif
-#ifdef CONFIG_MARS_MEM_RETRY
 		if (likely(res))
 			break;
 		msleep(1000);
 	}
-#endif
 
 #ifdef BRICK_DEBUG_MEM
 	if (likely(res)) {
@@ -348,20 +336,16 @@ static inline
 void *__brick_block_alloc(gfp_t gfp, int order)
 {
 	void *res;
-#ifdef CONFIG_MARS_MEM_RETRY
 	for (;;) {
-#endif
 #ifdef USE_KERNEL_PAGES
 		res = (void*)__get_free_pages(gfp, order);
 #else
 		res = __vmalloc(PAGE_SIZE << order, gfp, PAGE_KERNEL_IO);
 #endif
-#ifdef CONFIG_MARS_MEM_RETRY
 		if (likely(res))
 			break;
 		msleep(1000);
 	}
-#endif
 
 	if (likely(res)) {
 #ifdef BRICK_DEBUG_MEM
