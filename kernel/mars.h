@@ -37,8 +37,6 @@
 #include "lamport.h"
 #include "lib_timing.h"
 
-#define GFP_MARS GFP_BRICK
-
 /////////////////////////////////////////////////////////////////////////
 
 // MARS-specific debugging helpers
