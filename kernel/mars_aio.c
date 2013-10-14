@@ -241,10 +241,6 @@ static int aio_ref_get(struct aio_output *output, struct mref_object *mref)
 			return -ENOMEM;
 		}
 		mref->ref_data = brick_block_alloc(mref->ref_pos, (mref_a->alloc_len = mref->ref_len));
-		if (unlikely(!mref->ref_data)) {
-			MARS_ERR("ENOMEM %d bytes\n", mref->ref_len);
-			return -ENOMEM;
-		}
 #if 0 // ???
 		mref->ref_flags = 0;
 #endif
@@ -962,8 +958,6 @@ char *aio_statistics(struct aio_brick *brick, int verbose)
 	char *res = brick_string_alloc(4096);
 	char *sync = NULL;
 	int pos = 0;
-	if (!res)
-		return NULL;
 
 	pos += report_timing(&timings[0], res + pos, 4096 - pos);
 	pos += report_timing(&timings[1], res + pos, 4096 - pos);

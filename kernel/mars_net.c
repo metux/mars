@@ -442,11 +442,9 @@ int mars_send_raw(struct mars_socket *msock, const void *buf, int len, bool cork
 
 #ifdef USE_BUFFERING
 restart:
-	while (!msock->s_buffer) {
+	if (!msock->s_buffer) {
 		msock->s_pos = 0;
 		msock->s_buffer = brick_block_alloc(0, PAGE_SIZE);
-		if (unlikely(!msock->s_buffer))
-			brick_msleep(100);
 	}
 
 	if (msock->s_pos + rest < PAGE_SIZE) {
@@ -505,10 +503,6 @@ int mars_recv_raw(struct mars_socket *msock, void *buf, int minlen, int maxlen)
 
 	if (!buf) {
 		buf = dummy = brick_block_alloc(0, maxlen);
-	}
-	if (!buf) {
-		MARS_WRN("#%d bad receive buffer\n", msock->s_debug_nr);
-		return -EINVAL;
 	}
 
 	if (!mars_get_socket(msock))
@@ -677,10 +671,6 @@ struct mars_desc_cache *make_sender_cache(struct mars_socket *msock, const struc
 	}
 
 	mc = brick_block_alloc(0, maxlen);
-	if (unlikely(!mc)) {
-		MARS_ERR("#%d desc cache alloc error\n", msock->s_debug_nr);
-		goto done;
-	}
 
 	memset(mc, 0, maxlen);
 	mc->cache_sender_cookie = (u64)meta;
@@ -813,10 +803,6 @@ int _desc_recv_item(struct mars_socket *msock, void *data, const struct mars_des
 
 		if (len > 0 && item) {
 			char *str = _brick_string_alloc(len, line);
-			if (unlikely(!str)) {
-				MARS_ERR("#%d string alloc error\n", msock->s_debug_nr);
-				goto done;
-			}
 			*(void**)item = str;
 			item = str;
 		}
@@ -953,11 +939,6 @@ int desc_recv_struct(struct mars_socket *msock, void *data, const struct meta *m
 		}
 
 		mc = _brick_block_alloc(0, PAGE_SIZE, line);
-		if (unlikely(!mc)) {
-			MARS_WRN("#%d called from line %d out of memory\n", msock->s_debug_nr, line);
-			status = -ENOMEM;
-			goto err;
-		}
 
 		status = mars_recv_raw(msock, mc, header.h_meta_len, header.h_meta_len);
 		MARS_IO("#%d got mc=%p h_meta_len=%d status=%d\n", msock->s_debug_nr, mc, header.h_meta_len, status);
@@ -1059,10 +1040,6 @@ int mars_recv_mref(struct mars_socket *msock, struct mref_object *mref, struct m
 	if (cmd->cmd_code & CMD_FLAG_HAS_DATA) {
 		if (!mref->ref_data)
 			mref->ref_data = brick_zmem_alloc(mref->ref_len);
-		if (!mref->ref_data) {
-			status = -ENOMEM;
-			goto done;
-		}
 		status = mars_recv_raw(msock, mref->ref_data, mref->ref_len, mref->ref_len);
 		if (status < 0)
 			MARS_WRN("#%d mref_len = %d, status = %d\n", msock->s_debug_nr, mref->ref_len, status);

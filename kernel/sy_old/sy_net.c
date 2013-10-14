@@ -72,10 +72,6 @@ int mars_recv_dent_list(struct mars_socket *sock, struct list_head *anchor)
 	int status;
 	for (;;) {
 		struct mars_dent *dent = brick_zmem_alloc(sizeof(struct mars_dent));
-		if (!dent)
-			return -ENOMEM;
-
-		//MARS_IO("\n");
 
 		status = mars_recv_struct(sock, dent, mars_dent_meta);
 		if (status <= 0) {
