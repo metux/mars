@@ -12,7 +12,6 @@
 #define ALWAYS_UNPLUG true
 #define PREFETCH_LEN PAGE_SIZE
 //#define FRONT_MERGE // FIXME: this does not work.
-//#define MODIFY_READAHEAD // don't use it, otherwise sequential IO will suffer
 
 // low-level device parameters
 #define USE_MAX_SECTORS         (MARS_MAX_SEGMENT_SIZE >> 9)
@@ -23,7 +22,6 @@
 
 #define USE_CONGESTED_FN
 #define USE_MERGE_BVEC
-//#define DENY_READA
 
 #include <linux/kernel.h>
 #include <linux/module.h>
@@ -322,16 +320,11 @@ if_make_request(struct request_queue *q, struct bio *bio)
 			mars_limit_sleep(&if_throttle, kb);
 	}
 
-#ifdef DENY_READA // provisinary -- we should introduce an equivalent of READA also to the MARS infrastructure
+	// TODO: implement readahead in the infrastructure
 	if (ahead) {
 		atomic_inc(&input->total_reada_count);
-		bio_endio(bio, -EWOULDBLOCK);
-		error = 0;
-		goto done;
 	}
-#else
-	(void)ahead; // shut up gcc
-#endif
+
 	if (unlikely(discard)) { // NYI
 		bio_endio(bio, 0);
 		error = 0;
@@ -747,10 +740,6 @@ static int if_switch(struct if_brick *brick)
 		/* we have no partitions. we contain only ourselves. */
 		input->bdev->bd_contains = input->bdev;
 
-#ifdef MODIFY_READAHEAD
-		MARS_INF("ra_pages OLD = %lu NEW = %d\n", q->backing_dev_info.ra_pages, brick->readahead);
-		q->backing_dev_info.ra_pages = brick->readahead;
-#endif
 #ifdef USE_CONGESTED_FN
 		MARS_DBG("congested_fn\n");
 		q->backing_dev_info.congested_fn = mars_congested;
