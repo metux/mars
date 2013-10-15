@@ -324,8 +324,6 @@ EXPORT_SYMBOL_GPL(mars_mem_percent);
 #define CONF_ALL_PRIO   MARS_PRIO_NORMAL
 
 #define IF_MAX_PLUGGED 10000
-#define IF_READAHEAD 0
-//#define IF_READAHEAD 1
 
 #define BIO_READAHEAD 0
 //#define BIO_READAHEAD 1
@@ -479,7 +477,6 @@ int _set_if_params(struct mars_brick *_brick, void *private)
 	}
 	if_brick->dev_size = rot->dev_size;
 	if_brick->max_plugged = IF_MAX_PLUGGED;
-	if_brick->readahead = IF_READAHEAD;
 	MARS_INF("name = '%s' path = '%s' size = %lld\n", _brick->brick_name, _brick->brick_path, if_brick->dev_size);
 	return 1;
 }

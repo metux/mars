@@ -78,7 +78,6 @@ struct if_brick {
 	// parameters
 	loff_t dev_size;
 	int max_plugged;
-	int readahead;
 	// inspectable
 	atomic_t open_count;
 	// private
