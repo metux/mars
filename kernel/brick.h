@@ -61,8 +61,10 @@ struct generic_object;
 struct generic_aspect;
 
 #define GENERIC_ASPECT_TYPE(OBJTYPE)					\
+	/* readonly from outside */					\
 	const char *aspect_type_name;					\
 	const struct generic_object_type *object_type;			\
+	/* private */							\
 	int  aspect_size;						\
         int  (*init_fn)(struct OBJTYPE##_aspect *ini);			\
         void (*exit_fn)(struct OBJTYPE##_aspect *ini);			\
@@ -72,7 +74,9 @@ struct generic_aspect_type {
 };
 
 #define GENERIC_OBJECT_TYPE(OBJTYPE)					\
+	/* readonly from outside */					\
 	const char *object_type_name;					\
+	/* private */							\
 	int default_size;						\
 	int object_type_nr;						\
         int  (*init_fn)(struct OBJTYPE##_object *ini);			\
@@ -83,6 +87,7 @@ struct generic_object_type {
 };
 
 #define GENERIC_OBJECT_LAYOUT(OBJTYPE)					\
+	/* private */							\
 	int size_hint;							\
 	atomic_t alloc_count;						\
 	atomic_t aspect_count;						\
@@ -94,7 +99,9 @@ struct generic_object_layout {
 };
 
 #define GENERIC_OBJECT(OBJTYPE)						\
+	/* readonly from outside */					\
 	const struct generic_object_type *object_type;			\
+	/* private */							\
 	struct generic_object_layout *object_layout;			\
 	struct OBJTYPE##_aspect **aspects;				\
 	int aspect_nr_max;						\
@@ -107,8 +114,10 @@ struct generic_object {
 };
 
 #define GENERIC_ASPECT(OBJTYPE)						\
+	/* readonly from outside */					\
 	struct OBJTYPE##_object *object;				\
 	const struct generic_aspect_type *aspect_type;			\
+	/* private */							\
 	bool shortcut;							\
 
 struct generic_aspect {
@@ -120,9 +129,11 @@ struct generic_aspect {
 // definitions for asynchronous callback objects
 
 #define GENERIC_CALLBACK(OBJTYPE)					\
+	/* set by macros, afterwards readonly from outside */		\
 	void (*cb_fn)(struct OBJTYPE##_callback *cb);			\
 	void  *cb_private;						\
 	int    cb_error;						\
+	/* private */							\
 	struct generic_callback *cb_next;				\
 
 struct generic_callback {
@@ -131,6 +142,7 @@ struct generic_callback {
 
 #define CALLBACK_OBJECT(OBJTYPE)					\
 	GENERIC_OBJECT(OBJTYPE);					\
+	/* private, access by macros */					\
 	struct generic_callback *object_cb;				\
 	struct generic_callback _object_cb;				\
 
@@ -207,24 +219,30 @@ struct generic_output_ops;
 struct generic_brick_type;
 
 struct generic_switch {
+	/* set by strategy layer, readonly from worker layer */
 	bool button;
+	/* set by worker layer, readonly from strategy layer */
 	bool led_on;
 	bool led_off;
+	/* private (for any layer) */
 	bool force_off;
 	int  percent_done;
 	wait_queue_head_t event;
 };
 
 #define GENERIC_BRICK(BRITYPE)						\
+	/* accessible */						\
+	struct generic_switch power;					\
+	/* set by strategy layer, readonly from worker layer */		\
 	const char *brick_name;						\
 	const struct BRITYPE##_brick_type *type;			\
-	struct BRITYPE##_brick_ops *ops;				\
 	int nr_inputs;							\
 	int nr_outputs;							\
-	int brick_index; /* globally unique */                          \
 	struct BRITYPE##_input **inputs;				\
 	struct BRITYPE##_output **outputs;				\
-	struct generic_switch power;					\
+	/* private (for any layer) */					\
+	struct BRITYPE##_brick_ops *ops;				\
+	int brick_index; /* globally unique */                          \
 	int (*free)(struct BRITYPE##_brick *del);			\
 	struct list_head tmp_head;					\
 
@@ -233,9 +251,11 @@ struct generic_brick {
 };
 
 #define GENERIC_INPUT(BRITYPE)						\
+	/* set by strategy layer, readonly from worker layer */		\
 	const char *input_name;						\
 	struct BRITYPE##_brick *brick;					\
 	const struct BRITYPE##_input_type *type;			\
+	/* private (for any layer) */					\
 	struct BRITYPE##_output *connect;				\
 	struct list_head input_head;					\
 	
@@ -244,9 +264,11 @@ struct generic_input {
 };
 
 #define GENERIC_OUTPUT(BRITYPE)						\
+	/* set by strategy layer, readonly from worker layer */		\
 	const char *output_name;					\
 	struct BRITYPE##_brick *brick;					\
 	const struct BRITYPE##_output_type *type;			\
+	/* private (for any layer) */					\
 	struct BRITYPE##_output_ops *ops;				\
 	struct list_head output_head;					\
 	int nr_connected;						\
@@ -286,14 +308,16 @@ struct generic_output_ops {
 
 // although possible, *_type should never be extended
 #define GENERIC_BRICK_TYPE(BRITYPE)					\
+	/* set by strategy layer, readonly from worker layer */		\
 	const char *type_name;						\
-	int brick_size;							\
 	int max_inputs;							\
 	int max_outputs;						\
 	const struct BRITYPE##_input_type **default_input_types;	\
 	const char **default_input_names;				\
 	const struct BRITYPE##_output_type **default_output_types;	\
 	const char **default_output_names;				\
+	/* private (for any layer) */					\
+	int brick_size;							\
 	struct BRITYPE##_brick_ops *master_ops;				\
 	const struct generic_aspect_type **aspect_types;		\
 	const struct BRITYPE##_input_types **default_type;		\
@@ -305,7 +329,9 @@ struct generic_brick_type {
 };
 
 #define GENERIC_INPUT_TYPE(BRITYPE)					\
+	/* set by strategy layer, readonly from worker layer */		\
 	char *type_name;						\
+	/* private (for any layer) */					\
 	int input_size;							\
 	int (*input_construct)(struct BRITYPE##_input *input);		\
 	int (*input_destruct)(struct BRITYPE##_input *input);		\
@@ -315,7 +341,9 @@ struct generic_input_type {
 };
 
 #define GENERIC_OUTPUT_TYPE(BRITYPE)					\
+	/* set by strategy layer, readonly from worker layer */		\
 	char *type_name;						\
+	/* private (for any layer) */					\
 	int output_size;						\
 	struct BRITYPE##_output_ops *master_ops;			\
 	int (*output_construct)(struct BRITYPE##_output *output);	\
