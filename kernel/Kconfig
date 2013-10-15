@@ -380,7 +380,7 @@ config MARS_LOGROT_AUTO
 
 config MARS_PREFER_SIO
 	bool "prefer sio bricks instead of aio"
-	depends on MARS
+	depends on MARS_DEBUG
 	default n
 	---help---
 	Normally OFF for production systems.

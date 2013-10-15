@@ -43,12 +43,12 @@
 #include "../mars_client.h"
 #include "../mars_copy.h"
 #include "../mars_bio.h"
-#include "../mars_sio.h"
 #include "../mars_aio.h"
 #include "../mars_trans_logger.h"
 #include "../mars_if.h"
 #include "mars_proc.h"
 #ifdef CONFIG_MARS_DEBUG // otherwise currently unused
+#include "../mars_sio.h"
 #include "../mars_dummy.h"
 #include "../mars_check.h"
 #include "../mars_buf.h"
@@ -376,6 +376,7 @@ int _set_client_params(struct mars_brick *_brick, void *private)
 	return 1;
 }
 
+#ifdef CONFIG_MARS_DEBUG // otherwise currently unused
 static
 int _set_sio_params(struct mars_brick *_brick, void *private)
 {
@@ -393,6 +394,7 @@ int _set_sio_params(struct mars_brick *_brick, void *private)
 	MARS_INF("name = '%s' path = '%s'\n", _brick->brick_name, _brick->brick_path);
 	return 1;
 }
+#endif
 
 static
 int _set_aio_params(struct mars_brick *_brick, void *private)
@@ -402,9 +404,11 @@ int _set_aio_params(struct mars_brick *_brick, void *private)
 	if (_brick->type == (void*)&client_brick_type) {
 		return _set_client_params(_brick, private);
 	}
+#ifdef CONFIG_MARS_DEBUG // otherwise currently unused
 	if (_brick->type == (void*)&sio_brick_type) {
 		return _set_sio_params(_brick, private);
 	}
+#endif
 	if (_brick->type != (void*)&aio_brick_type) {
 		MARS_ERR("bad brick type\n");
 		return -EINVAL;
@@ -427,9 +431,11 @@ int _set_bio_params(struct mars_brick *_brick, void *private)
 	if (_brick->type == (void*)&aio_brick_type) {
 		return _set_aio_params(_brick, private);
 	}
+#ifdef CONFIG_MARS_DEBUG // otherwise currently unused
 	if (_brick->type == (void*)&sio_brick_type) {
 		return _set_sio_params(_brick, private);
 	}
+#endif
 	if (_brick->type != (void*)&bio_brick_type) {
 		MARS_ERR("bad brick type\n");
 		return -EINVAL;
@@ -4397,8 +4403,10 @@ static int light_thread(void *data)
 		MARS_DBG("kill client bricks (when possible) = %d\n", status);
 		status = mars_kill_brick_when_possible(&_global, &_global.brick_anchor, false, (void*)&aio_brick_type, true);
 		MARS_DBG("kill aio    bricks (when possible) = %d\n", status);
+#ifdef CONFIG_MARS_DEBUG
 		status = mars_kill_brick_when_possible(&_global, &_global.brick_anchor, false, (void*)&sio_brick_type, true);
 		MARS_DBG("kill sio    bricks (when possible) = %d\n", status);
+#endif
 		status = mars_kill_brick_when_possible(&_global, &_global.brick_anchor, false, (void*)&bio_brick_type, true);
 		MARS_DBG("kill bio    bricks (when possible) = %d\n", status);
 
@@ -4559,13 +4567,13 @@ static int __init init_light(void)
 	DO_INIT(mars_check);
 	DO_INIT(mars_buf);
 	DO_INIT(mars_usebuf);
+	DO_INIT(mars_sio);
 #endif
 	DO_INIT(log_format);
 	DO_INIT(mars_net);
 	DO_INIT(mars_server);
 	DO_INIT(mars_client);
 	DO_INIT(mars_aio);
-	DO_INIT(mars_sio);
 	DO_INIT(mars_bio);
 	DO_INIT(mars_if);
 	DO_INIT(mars_copy);
