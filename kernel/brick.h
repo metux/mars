@@ -460,6 +460,8 @@ extern inline struct BRITYPE##_##OBJTYPE##_aspect *BRITYPE##_##OBJTYPE##_get_asp
 
 // some general helpers
 
+#ifdef _STRATEGY // call this only from the strategy implementation
+
 /* Generic interface to simple brick status changes.
  */
 extern void set_button(struct generic_switch *sw, bool val, bool force);
@@ -469,6 +471,8 @@ extern void set_led_off(struct generic_switch *sw, bool val);
  * "Forced switch off" means that it cannot be switched on again.
  */
 extern void set_button_wait(struct generic_brick *brick, bool val, bool force, int timeout);
+
+#endif
 
 /////////////////////////////////////////////////////////////////////////
 
