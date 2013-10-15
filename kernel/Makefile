@@ -23,7 +23,6 @@ mars-objs :=				\
 	mars_server.o			\
 	mars_client.o			\
 	mars_aio.o			\
-	mars_sio.o			\
 	mars_bio.o			\
 	mars_if.o			\
 	mars_copy.o			\
@@ -56,7 +55,7 @@ obj-$(CONFIG_MARS_LIGHT)	+= sy_old/mars_light.o \
 				   mars_net.o sy_old/sy_net.o \
 				   sy_old/mars_proc.o
 
-ifdef CONFIG_DEBUG_KERNEL
+ifdef CONFIG_MARS_DEBUG
 
 KBUILD_CFLAGS += -fno-inline-functions -fno-inline-small-functions -fno-inline-functions-called-once
 
@@ -65,6 +64,7 @@ KBUILD_CFLAGS += -fno-inline-functions -fno-inline-small-functions -fno-inline-f
 # (so the compiler may throw any complaints)
 
 mars-objs += 				\
+	mars_sio.o			\
 	mars_dummy.o			\
 	mars_check.o			\
 	mars_buf.o			\
