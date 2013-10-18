@@ -98,7 +98,7 @@ static void sio_ref_put(struct sio_output *output, struct mref_object *mref)
 		//atomic_dec(&output->alloc_count);
 	}
 
-	sio_free_mref(mref);
+	_mref_free(mref);
 }
 
 // some code borrowed from the loopback driver
