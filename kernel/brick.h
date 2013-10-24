@@ -455,14 +455,6 @@ extern inline int BRITYPE##_unregister_brick_type(void)		        \
 extern const struct BRITYPE##_brick_type BRITYPE##_brick_type;	        \
 extern const struct BRITYPE##_input_type BRITYPE##_input_type;	        \
 extern const struct BRITYPE##_output_type BRITYPE##_output_type;        \
-									\
-extern inline void _##BRITYPE##_output_init(struct BRITYPE##_brick *brick, struct BRITYPE##_output *output) \
-{									\
-	_generic_output_init(						\
-		(struct generic_brick*)brick,				\
-		(const struct generic_output_type*)&BRITYPE##_output_type, \
-		(struct generic_output*)output);			\
-}									\
 
 ///////////////////////////////////////////////////////////////////////
 
