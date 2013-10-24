@@ -15,9 +15,8 @@
 
 // init / exit functions
 
-void _generic_output_init(struct generic_brick *brick, const struct generic_output_type *type, struct generic_output *output, const char *output_name)
+void _generic_output_init(struct generic_brick *brick, const struct generic_output_type *type, struct generic_output *output)
 {
-	output->output_name = output_name;
 	output->brick = brick;
 	output->type = type;
 	output->ops = type->master_ops;
@@ -29,7 +28,6 @@ EXPORT_SYMBOL_GPL(_generic_output_init);
 void _generic_output_exit(struct generic_output *output)
 {
 	list_del_init(&output->output_head);
-	output->output_name = NULL;
 	output->brick = NULL;
 	output->type = NULL;
 	output->ops = NULL;
@@ -37,10 +35,9 @@ void _generic_output_exit(struct generic_output *output)
 }
 EXPORT_SYMBOL_GPL(_generic_output_exit);
 
-int generic_brick_init(const struct generic_brick_type *type, struct generic_brick *brick, const char *brick_name)
+int generic_brick_init(const struct generic_brick_type *type, struct generic_brick *brick)
 {
 	brick->brick_index = get_nr();
-	brick->brick_name = brick_name;
 	brick->type = type;
 	brick->ops = type->master_ops;
 	brick->nr_inputs = 0;
@@ -55,7 +52,6 @@ EXPORT_SYMBOL_GPL(generic_brick_init);
 void generic_brick_exit(struct generic_brick *brick)
 {
 	list_del_init(&brick->tmp_head);
-	brick->brick_name = NULL;
 	brick->type = NULL;
 	brick->ops = NULL;
 	brick->nr_inputs = 0;
@@ -64,13 +60,12 @@ void generic_brick_exit(struct generic_brick *brick)
 }
 EXPORT_SYMBOL_GPL(generic_brick_exit);
 
-int generic_input_init(struct generic_brick *brick, int index, const struct generic_input_type *type, struct generic_input *input, const char *input_name)
+int generic_input_init(struct generic_brick *brick, int index, const struct generic_input_type *type, struct generic_input *input)
 {
 	if (index < 0 || index >= brick->type->max_inputs)
 		return -EINVAL;
 	if (brick->inputs[index])
 		return -EEXIST;
-	input->input_name = input_name;
 	input->brick = brick;
 	input->type = type;
 	input->connect = NULL;
@@ -84,20 +79,19 @@ EXPORT_SYMBOL_GPL(generic_input_init);
 void generic_input_exit(struct generic_input *input)
 {
 	list_del_init(&input->input_head);
-	input->input_name = NULL;
 	input->brick = NULL;
 	input->type = NULL;
 	input->connect = NULL;
 }
 EXPORT_SYMBOL_GPL(generic_input_exit);
 
-int generic_output_init(struct generic_brick *brick, int index, const struct generic_output_type *type, struct generic_output *output, const char *output_name)
+int generic_output_init(struct generic_brick *brick, int index, const struct generic_output_type *type, struct generic_output *output)
 {
 	if (index < 0 || index >= brick->type->max_outputs)
 		return -ENOMEM;
 	if (brick->outputs[index])
 		return -EEXIST;
-	_generic_output_init(brick, type, output, output_name);
+	_generic_output_init(brick, type, output);
 	brick->outputs[index] = output;
 	brick->nr_outputs++;
 	return 0;
@@ -328,8 +322,7 @@ int generic_brick_init_full(
 	int size, 
 	const struct generic_brick_type *brick_type,
 	const struct generic_input_type **input_types,
-	const struct generic_output_type **output_types,
-	const char **names)
+	const struct generic_output_type **output_types)
 {
 	struct generic_brick *brick = data;
 	int status;
@@ -343,7 +336,7 @@ int generic_brick_init_full(
 
 	// call the generic constructors
 
-	status = generic_brick_init(brick_type, brick, names ? *names++ : NULL);
+	status = generic_brick_init(brick_type, brick);
 	if (status)
 		return status;
 	data += brick_type->brick_size;
@@ -355,7 +348,6 @@ int generic_brick_init_full(
 	if (!input_types) {
 		BRICK_DBG("generic_brick_init_full: switch to default input_types\n");
 		input_types = brick_type->default_input_types;
-		names = brick_type->default_input_names;
 		if (unlikely(!input_types)) {
 			BRICK_ERR("no input types specified\n");
 			return -EINVAL;
@@ -375,7 +367,7 @@ int generic_brick_init_full(
 			return -EINVAL;
 		}
 		BRICK_DBG("generic_brick_init_full: calling generic_input_init()\n");
-		status = generic_input_init(brick, i, type, input, (names && *names) ? *names++ : type->type_name);
+		status = generic_input_init(brick, i, type, input);
 		if (status < 0)
 			return status;
 		data += type->input_size;
@@ -386,7 +378,6 @@ int generic_brick_init_full(
 	if (!output_types) {
 		BRICK_DBG("generic_brick_init_full: switch to default output_types\n");
 		output_types = brick_type->default_output_types;
-		names = brick_type->default_output_names;
 		if (unlikely(!output_types)) {
 			BRICK_ERR("no output types specified\n");
 			return -EINVAL;
@@ -405,7 +396,7 @@ int generic_brick_init_full(
 			return -EINVAL;
 		}
 		BRICK_DBG("generic_brick_init_full: calling generic_output_init()\n");
-		generic_output_init(brick, i, type, output, (names && *names) ? *names++ : type->type_name);
+		generic_output_init(brick, i, type, output);
 		if (status < 0)
 			return status;
 		data += type->output_size;
