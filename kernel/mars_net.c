@@ -11,7 +11,6 @@
 #include "mars.h"
 #include "mars_net.h"
 
-#undef USE_SENDPAGE // FIXME: does not work, leads to data corruption (probably due to races with asynchrous sending)
 #define USE_BUFFERING
 
 #define MAX_FIELD_LEN   32
@@ -356,27 +355,6 @@ int _mars_send_raw(struct mars_socket *msock, const void *buf, int len)
 			break;
 		}
 
-#ifdef USE_SENDPAGE // FIXME: does not work, leads to data corruption (probably due to races with asynchrous sending)
-		{
-			int page_offset = 0;
-			struct page *page;
-			int flags = MSG_NOSIGNAL;
-			page = brick_iomap(buf, &page_offset, &this_len);
-			if (unlikely(!page)) {
-				MARS_ERR("cannot iomap() kernel address %p\n", buf);
-				status = -EINVAL;
-				break;
-			}
-
-			if (this_len < len)
-				flags |= MSG_MORE;
-			
-			status = kernel_sendpage(sock, page, page_offset, this_len, flags);
-			if (status > 0 && status != this_len) {
-				MARS_WRN("#%d status = %d this_len = %d\n", msock->s_debug_nr, status, this_len);
-			}
-		}
-#else // spare code, activate in case of problems with sendpage()
 		{
 			struct kvec iov = {
 				.iov_base = (void*)buf,
@@ -388,7 +366,6 @@ int _mars_send_raw(struct mars_socket *msock, const void *buf, int len)
 			};
 			status = kernel_sendmsg(sock, &msg, &iov, 1, this_len);
 		}
-#endif
 
 		if (status == -EAGAIN) {
 			brick_msleep(sleeptime);
