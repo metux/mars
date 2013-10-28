@@ -13,6 +13,8 @@
 
 #define USE_BUFFERING
 
+#define SEND_PROTO_VERSION   1
+
 ////////////////////////////////////////////////////////////////////
 
 /* Internal data structures for low-level transfer of C structures
@@ -27,16 +29,20 @@
 struct mars_desc_cache {
 	u64   cache_sender_cookie;
 	u64   cache_recver_cookie;
+	u16   cache_sender_proto;
+	u16   cache_recver_proto;
 	s16   cache_items;
 	s8    cache_is_bigendian;
 	s8    cache_spare1;
 	s32   cache_spare2;
-	u64   cache_spare3;
+	s32   cache_spare3;
+	u64   cache_spare4[4];
 };
 
 struct mars_desc_item {
 	char  field_name[MAX_FIELD_LEN];
-	s16   field_type;
+	s8    field_type;
+	s8    field_spare0;
 	s16   field_data_size;
 	s16   field_sender_size;
 	s16   field_sender_offset;
@@ -263,6 +269,34 @@ void _set_socketopts(struct socket *sock)
 #endif
 }
 
+int mars_proto_exchange(struct mars_socket *msock, const char *msg)
+{
+	int status;
+
+	msock->s_send_proto = SEND_PROTO_VERSION;
+	status = mars_send_raw(msock, &msock->s_send_proto, 1, false);
+	if (unlikely(status < 0)) {
+		MARS_DBG("#%d protocol exchange on %s failed at sending, status = %d\n",
+			 msock->s_debug_nr,
+			 msg,
+			 status);
+		goto done;
+	}
+	status = mars_recv_raw(msock, &msock->s_recv_proto, 1, 1);
+	if (unlikely(status < 0)) {
+		MARS_DBG("#%d protocol exchange on %s failed at receiving, status = %d\n",
+			 msock->s_debug_nr,
+			 msg,
+			 status);
+		goto done;
+	}
+	// take the the minimum of both protocol versions
+	if (msock->s_send_proto > msock->s_recv_proto)
+		msock->s_send_proto = msock->s_recv_proto;
+done:
+	return status;
+}
+
 int mars_create_socket(struct mars_socket *msock, struct sockaddr_storage *addr, bool is_server)
 {
 	struct socket *sock;
@@ -304,9 +338,11 @@ int mars_create_socket(struct mars_socket *msock, struct sockaddr_storage *addr,
 		}
 	} else {
 		status = kernel_connect(sock, sockaddr, sizeof(*sockaddr), 0);
-		if (status < 0) {
+		if (unlikely(status < 0)) {
 			MARS_DBG("#%d connect failed, status = %d\n", msock->s_debug_nr, status);
+			goto done;
 		}
+		status = mars_proto_exchange(msock, "connect");
 	}
 
 done:
@@ -350,7 +386,8 @@ int mars_accept_socket(struct mars_socket *new_msock, struct mars_socket *old_ms
 		new_msock->s_alive = true;
 		new_msock->s_debug_nr = ++current_debug_nr;
 		MARS_DBG("#%d successfully accepted socket #%d\n", old_msock->s_debug_nr, new_msock->s_debug_nr);
-		status = 0;
+
+		status = mars_proto_exchange(new_msock, "accept");
 err:
 		mars_put_socket(old_msock);
 	}
@@ -734,6 +771,9 @@ struct mars_desc_cache *make_sender_cache(struct mars_socket *msock, const struc
 
 	memset(mc, 0, maxlen);
 	mc->cache_sender_cookie = (u64)meta;
+	// further bits may be used in future
+	mc->cache_sender_proto = msock->s_send_proto;
+	mc->cache_recver_proto = msock->s_recv_proto;
 
 	maxlen -= sizeof(struct mars_desc_cache);
 	mi = (void*)(mc + 1);
