@@ -15,7 +15,6 @@
 
 //#define BRICK_DEBUGGING
 //#define MARS_DEBUGGING
-//#define STAT_DEBUGGING
 
 #include <linux/kernel.h>
 #include <linux/module.h>
