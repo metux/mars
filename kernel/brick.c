@@ -809,12 +809,3 @@ void __exit exit_brick(void)
 		nr_table = NULL;
 	}
 }
-
-#ifndef CONFIG_MARS_HAVE_BIGMODULE
-MODULE_DESCRIPTION("generic brick infrastructure");
-MODULE_AUTHOR("Thomas Schoebel-Theuer <tst@1und1.de>");
-MODULE_LICENSE("GPL");
-
-module_init(init_brick);
-module_exit(exit_brick);
-#endif

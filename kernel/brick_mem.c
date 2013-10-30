@@ -782,12 +782,3 @@ void __exit exit_brick_mem(void)
 
 	brick_mem_statistics();
 }
-
-#ifndef CONFIG_MARS_HAVE_BIGMODULE
-MODULE_DESCRIPTION("generic brick infrastructure");
-MODULE_AUTHOR("Thomas Schoebel-Theuer <tst@1und1.de>");
-MODULE_LICENSE("GPL");
-
-module_init(init_brick_mem);
-module_exit(exit_brick_mem);
-#endif

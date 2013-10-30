@@ -327,12 +327,3 @@ void __exit exit_mars_check(void)
 	MARS_INF("exit_check()\n");
 	check_unregister_brick_type();
 }
-
-#ifndef CONFIG_MARS_HAVE_BIGMODULE
-MODULE_DESCRIPTION("MARS check brick");
-MODULE_AUTHOR("Thomas Schoebel-Theuer <tst@1und1.de>");
-MODULE_LICENSE("GPL");
-
-module_init(init_mars_check);
-module_exit(exit_mars_check);
-#endif
