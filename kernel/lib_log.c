@@ -478,12 +478,3 @@ void __exit exit_log_format(void)
 {
 	MARS_INF("exit_log_format()\n");
 }
-
-#ifndef CONFIG_MARS_HAVE_BIGMODULE
-MODULE_DESCRIPTION("MARS log_format infrastucture");
-MODULE_AUTHOR("Thomas Schoebel-Theuer <tst@1und1.de>");
-MODULE_LICENSE("GPL");
-
-module_init(init_log_format);
-module_exit(exit_log_format);
-#endif

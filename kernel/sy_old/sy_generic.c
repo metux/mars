@@ -1773,12 +1773,3 @@ void __exit exit_sy(void)
 {
 	MARS_INF("exit_sy()\n");
 }
-
-#ifndef CONFIG_MARS_HAVE_BIGMODULE
-MODULE_DESCRIPTION("MARS block storage");
-MODULE_AUTHOR("Thomas Schoebel-Theuer <tst@1und1.de>");
-MODULE_LICENSE("GPL");
-
-module_init(init_sy);
-module_exit(exit_sy);
-#endif
