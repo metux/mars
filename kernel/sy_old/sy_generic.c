@@ -1629,14 +1629,6 @@ int global_show_statist =
 #endif
 EXPORT_SYMBOL_GPL(global_show_statist);
 
-int global_show_connections =
-#ifdef CONFIG_MARS_SHOW_CONNECTIONS
-	1;
-#else
-	0;
-#endif
-EXPORT_SYMBOL_GPL(global_show_connections);
-
 static
 void _show_one(struct mars_brick *test, int *brick_count)
 {
@@ -1694,17 +1686,15 @@ void show_statistics(struct mars_global *global, const char *class)
 	int brick_count = 0;
 
 	// update all connection state symlinks
-	if (global_show_connections) {
-		down_read(&global->brick_mutex);
-		for (tmp = global->brick_anchor.next; tmp != &global->brick_anchor; tmp = tmp->next) {
-			struct mars_brick *test;
-			test = container_of(tmp, struct mars_brick, global_brick_link);
-			if (test->type == (void*)&client_brick_type) {
-				update_client_links((void*)test);
-			}
+	down_read(&global->brick_mutex);
+	for (tmp = global->brick_anchor.next; tmp != &global->brick_anchor; tmp = tmp->next) {
+		struct mars_brick *test;
+		test = container_of(tmp, struct mars_brick, global_brick_link);
+		if (test->type == (void*)&client_brick_type) {
+			update_client_links((void*)test);
 		}
-		up_read(&global->brick_mutex);
 	}
+	up_read(&global->brick_mutex);
 
 	if (!global_show_statist)
 		return; // silently
