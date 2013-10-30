@@ -13,16 +13,6 @@
  */
 #define SYMLINK_TREE_VERSION "0.1"
 
-// disable this only for debugging!
-#define RUN_PEERS
-#define RUN_DATA
-#define RUN_LOGINIT
-#define RUN_PRIMARY
-#define RUN_SYNCSTATUS
-#define RUN_LOGFILES
-#define RUN_REPLAY
-#define RUN_DEVICE
-
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/string.h>
@@ -3948,9 +3938,7 @@ static const struct light_class light_classes[] = {
 		.cl_len = 3,
 		.cl_type = 'l',
 		.cl_father = CL_IPS,
-#ifdef RUN_PEERS
 		.cl_forward = make_scan,
-#endif
 		.cl_backward = kill_scan,
 	},
 	/* Indicate aliveness of all cluster paritcipants
@@ -4108,9 +4096,7 @@ static const struct light_class light_classes[] = {
 		.cl_type = 'F',
 		.cl_hostcontext = true,
 		.cl_father = CL_RESOURCE,
-#ifdef RUN_DATA
 		.cl_forward = make_bio,
-#endif
 		.cl_backward = kill_any,
 	},
 	/* Symlink indicating the (common) size of the resource
@@ -4121,9 +4107,7 @@ static const struct light_class light_classes[] = {
 		.cl_type = 'l',
 		.cl_hostcontext = false,
 		.cl_father = CL_RESOURCE,
-#ifdef RUN_LOGINIT
 		.cl_forward = make_log_init,
-#endif
 		.cl_backward = kill_any,
 	},
 	/* Dito for each individual size
@@ -4143,9 +4127,7 @@ static const struct light_class light_classes[] = {
 		.cl_type = 'l',
 		.cl_hostcontext = false,
 		.cl_father = CL_RESOURCE,
-#ifdef RUN_PRIMARY
 		.cl_forward = make_primary,
-#endif
 		.cl_backward = NULL,
 	},
 	/* informational symlink indicating the current
@@ -4167,9 +4149,7 @@ static const struct light_class light_classes[] = {
 		.cl_type = 'l',
 		.cl_hostcontext = true,
 		.cl_father = CL_RESOURCE,
-#ifdef RUN_SYNCSTATUS
 		.cl_forward = make_sync,
-#endif
 		.cl_backward = kill_any,
 	},
 	/* informational symlink for verify status
@@ -4213,9 +4193,7 @@ static const struct light_class light_classes[] = {
 		.cl_serial = true,
 		.cl_hostcontext = false,
 		.cl_father = CL_RESOURCE,
-#ifdef RUN_LOGFILES
 		.cl_forward = make_log_step,
-#endif
 		.cl_backward = kill_any,
 	},
 	/* Symlink indicating the last state of
@@ -4227,9 +4205,7 @@ static const struct light_class light_classes[] = {
 		.cl_type = 'l',
 		.cl_hostcontext = true,
 		.cl_father = CL_RESOURCE,
-#ifdef RUN_REPLAY
 		.cl_forward = make_replay,
-#endif
 		.cl_backward = kill_any,
 	},
 
@@ -4241,9 +4217,7 @@ static const struct light_class light_classes[] = {
 		.cl_type = 'l',
 		.cl_hostcontext = true,
 		.cl_father = CL_RESOURCE,
-#ifdef RUN_DEVICE
 		.cl_forward = make_dev,
-#endif
 		.cl_backward = kill_dev,
 	},
 	{}
